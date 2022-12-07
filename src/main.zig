@@ -24,7 +24,8 @@ fn Shell(comptime n: []u8) void {
 
 const SubCommand = struct {
     name: []const u8,
-    func: fn ([]const []const u8) void,
+    // subcommand function receives args and rest of positionals
+    func: fn (anytype,[]const []const u8) void,
 };
 
 const commands = [_]SubCommand{
@@ -58,7 +59,7 @@ pub fn main() !void {
     }
     if (res.positionals.len > 0) {
         inline for (commands) |sc| {
-            if (std.mem.eql(u8, res.positionals[0], sc.name)) sc.func(res.positionals[1..]);
+            if (std.mem.eql(u8, res.positionals[0], sc.name)) sc.func(res.args,res.positionals[1..]);
             return;
         }
     }
@@ -67,19 +68,20 @@ pub fn main() !void {
 
 }
 
-fn run(cli:[]const []const u8) void {
+fn run(globals: anytype, cli:[]const []const u8) void {
+    _ = globals;
+
     println("", .{});
-    println("CLI: ", .{});
     if (std.os.getenv("ZIG_CLAPCOMPLETE_COMMANDS")) |envvar| {
         println("ENVVAR {s}", .{envvar});
     }
     if (clapcomplete_find_magic(cli[0]) catch false) {
         println("REGISTER:", .{});
     }
+    println("CLI: ", .{});
     for (cli) |arg| {
         println("<{s}>", .{arg});
     }
-    println("", .{});
 }
 
 fn clapcomplete_find_magic(filename: []const u8) !bool {
