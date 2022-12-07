@@ -1,11 +1,9 @@
 const clap = @import("clap");
 const std = @import("std");
+const magic = @import("magic.zig");
 
 const debug = std.debug;
 const io = std.io;
-
-const MAX_FIND_FILESIZE = 1e6; // this is the amount of bytes read from a binary to find the:
-const ARGCOMPLETE_MAGIC_ENV = "ZIG_CLAP_ARGCOMPLETE_RUN";
 
 const help_head =
 \\clapcomplete
@@ -32,7 +30,8 @@ const SubCommand = struct {
 };
 
 const commands = [_]SubCommand{
-    .{.name="run", .func=run},
+    .{.name="run", .func=@import("run.zig").run},
+    .{.name="source", .func=@import("source.zig").src},
 };
 
 pub fn main() !void {
@@ -62,8 +61,10 @@ pub fn main() !void {
     }
     if (res.positionals.len > 0) {
         inline for (commands) |sc| {
-            if (std.mem.eql(u8, res.positionals[0], sc.name)) sc.func(res.args,res.positionals[1..]);
-            return;
+            if (std.mem.eql(u8, res.positionals[0], sc.name)) {
+                sc.func(res.args,res.positionals[1..]);
+                return;
+            }
         }
     }
     debug.print("{s}\n", .{help_head});
@@ -71,70 +72,9 @@ pub fn main() !void {
 
 }
 
-fn run(globals: anytype, cli:[]const []const u8) void {
-    _ = globals;
-
-    println("", .{});
-    if (std.os.getenv("ZIG_CLAPCOMPLETE_COMMANDS")) |envvar| {
-        println("ENVVAR {s}", .{envvar});
-    }
-    if (clapcomplete_find_magic(cli[0]) catch false) {
-        debug.print("REGISTER:", .{});
-    }
-    println("CLI: ", .{});
-    for (cli) |arg| {
-        println("<{s}>", .{arg});
-    }
-}
-
-fn clapcomplete_find_magic(filename: []const u8) !bool {
-
-    var file = try std.fs.cwd().openFile(filename, .{});
-    defer file.close();
-
-    var buf_reader = std.io.bufferedReader(file.reader());
-    var in_stream = buf_reader.reader();
-
-    var bufA: [2048]u8 = undefined;
-    var bufActive: []u8 = &bufA;
-    bufActive.len = 1024;
-    var total: u64 = 0;
-    while (true) {
-        // const bufPassive = bufActive;
-        if (bufActive.ptr == &bufA) {
-            bufActive.ptr += bufActive.len;
-        } else {
-            bufActive.ptr -= bufActive.len;
-        }
-        var count = in_stream.read(bufActive) catch |err| return err;
-        if (count==0) break;
-        const magic_pos = std.mem.indexOf(u8, bufActive[0..count], ARGCOMPLETE_MAGIC_ENV);
-        if (magic_pos != null) {
-            // printjson(.{.pos=magic_pos,.t="test"}, .{});
-            println("POS: {d}", .{total + magic_pos.?});
-            return true;
-        }
-        total += count;
-        if (total > MAX_FIND_FILESIZE) break;
-    }
-    println("NOTFOUND: {} {}", .{total, MAX_FIND_FILESIZE});
-    return false;
-}
-
-fn println(comptime fmt: []const u8, args: anytype) void {
-    debug.print("PRINT: "++fmt++"\n", args);
-}
-
-fn printjson(value: anytype, options: std.json.StringifyOptions) void {
-    const writer = std.io.getStdOut();
-    _ = writer.write("PRINT:JSON:") catch unreachable;
-    std.json.stringify(value, options, writer.writer()) catch unreachable;
-    _ = writer.write("\n") catch unreachable;
-}
-
 pub fn autocomplete(args: anytype) void {
     _ = args;
-    const autocomplete_run = std.os.getenv(ARGCOMPLETE_MAGIC_ENV);
+    const autocomplete_run = std.os.getenv(magic.ARGCOMPLETE_ENV);
     if (autocomplete_run != null) {
         const out = std.io.getStdOut();
         _ = out.write("ZIG_CLAP_AUTOCOMPLETE_DONE\n") catch unreachable;
