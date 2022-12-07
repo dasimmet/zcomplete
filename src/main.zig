@@ -3,7 +3,10 @@ const std = @import("std");
 
 const debug = std.debug;
 const io = std.io;
-const MAX_FIND_FILESIZE = 1e6;
+
+const MAX_FIND_FILESIZE = 1e6; // this is the amount of bytes read from a binary to find the:
+const ARGCOMPLETE_MAGIC_ENV = "ZIG_CLAP_ARGCOMPLETE_RUN";
+
 const help_head =
 \\clapcomplete
 \\
@@ -76,7 +79,7 @@ fn run(globals: anytype, cli:[]const []const u8) void {
         println("ENVVAR {s}", .{envvar});
     }
     if (clapcomplete_find_magic(cli[0]) catch false) {
-        println("REGISTER:", .{});
+        debug.print("REGISTER:", .{});
     }
     println("CLI: ", .{});
     for (cli) |arg| {
@@ -105,7 +108,7 @@ fn clapcomplete_find_magic(filename: []const u8) !bool {
         }
         var count = in_stream.read(bufActive) catch |err| return err;
         if (count==0) break;
-        const magic_pos = std.mem.indexOf(u8, bufActive[0..count], "ZIG_CLAP_AUTOCOMPLETE_RUN");
+        const magic_pos = std.mem.indexOf(u8, bufActive[0..count], ARGCOMPLETE_MAGIC_ENV);
         if (magic_pos != null) {
             // printjson(.{.pos=magic_pos,.t="test"}, .{});
             println("POS: {d}", .{total + magic_pos.?});
@@ -131,7 +134,7 @@ fn printjson(value: anytype, options: std.json.StringifyOptions) void {
 
 pub fn autocomplete(args: anytype) void {
     _ = args;
-    const autocomplete_run = std.os.getenv("ZIG_CLAP_AUTOCOMPLETE_RUN");
+    const autocomplete_run = std.os.getenv(ARGCOMPLETE_MAGIC_ENV);
     if (autocomplete_run != null) {
         const out = std.io.getStdOut();
         _ = out.write("ZIG_CLAP_AUTOCOMPLETE_DONE\n") catch unreachable;

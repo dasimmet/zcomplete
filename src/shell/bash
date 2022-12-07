@@ -9,7 +9,7 @@ _clapcomplete()
     clapcomplete -- run "$bin" "$@" 2>&1 | while IFS="\n" read l; do
 
         [[ $l == PRINT:* ]] && echo -e "${l#'PRINT:'}"
-        [[ $l == REGISTER: ]] && _clapcomplete_register "$bin"
+        [[ $l == REGISTER:* ]] && _clapcomplete_register "$bin"
         [[ $l == ADD:* ]] && COMPREPLY+=("${l#'ADD:'}")
     
     done
