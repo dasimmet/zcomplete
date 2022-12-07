@@ -1,0 +1,45 @@
+#/usr/bin/env bash
+
+_clapcomplete()
+{
+    local bin="$(which $1)"
+    shift;
+
+    echo "COMS: $ZIG_CLAPCOMPLETE_COMMANDS"
+    local OLDIFS="$IFS"
+    IFS=":"
+    for it in $ZIG_CLAPCOMPLETE_COMMANDS;
+    do
+        if [ "$it" == "$bin" ];then
+            echo ""
+            echo clapcomplete enabled "$bin" "$@"
+            return
+        fi
+    done
+    IFS="$OLDIFS"
+    clapcomplete -- run "$bin" "$@" 2>&1 | while IFS="\n" read l; do
+
+        [[ $l == PRINT:* ]] && echo -e "${l#'PRINT:'}"
+        [[ $l == REGISTER:* ]] && _clapcomplete_register "$bin"
+        [[ $l == ADD:* ]] && COMPREPLY+=("${l#'ADD:'}")
+    
+    done
+
+#   COMPREPLY+=("now")
+#   COMPREPLY+=("tomorrow")
+#   COMPREPLY+=("never")
+
+}
+
+_clapcomplete_register () {
+    if ! echo $ZIG_CLAPCOMPLETE_COMMANDS | /bin/egrep -q "(^|:)$1($|:)" ; then
+        if [ "$2" = "after" ] ; then
+            ZIG_CLAPCOMPLETE_COMMANDS=$ZIG_CLAPCOMPLETE_COMMANDS:$1
+        else
+            ZIG_CLAPCOMPLETE_COMMANDS=$1:$ZIG_CLAPCOMPLETE_COMMANDS
+        fi
+    fi
+    export ZIG_CLAPCOMPLETE_COMMANDS;
+}
+
+complete -o default -o bashdefault -D -F _clapcomplete
