@@ -74,6 +74,7 @@ pub fn main() !void {
 
 pub fn autocomplete(args: anytype) void {
     _ = args;
+    std.mem.doNotOptimizeAway(magic.ARGCOMPLETE_MAGIC);
     const autocomplete_run = std.os.getenv(magic.ARGCOMPLETE_ENV);
     if (autocomplete_run != null) {
         const out = std.io.getStdOut();

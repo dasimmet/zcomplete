@@ -54,7 +54,7 @@ fn clapcomplete_find_magic(filename: []const u8) !bool {
         }
         var count = in_stream.read(bufActive) catch |err| return err;
         if (count==0) break;
-        const magic_pos = std.mem.indexOf(u8, bufActive[0..count], magic.ARGCOMPLETE_ENV);
+        const magic_pos = std.mem.indexOf(u8, bufActive[0..count], magic.ARGCOMPLETE_MAGIC);
         if (magic_pos != null) {
             // printjson(.{.pos=magic_pos,.t="test"}, .{});
             println("POS: {d}", .{total + magic_pos.?});
