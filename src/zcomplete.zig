@@ -3,6 +3,7 @@ pub const options = @import("options");
 const std = @import("std");
 
 pub const AutoComplete = struct {
+    allocator: std.mem.Allocator,
     args: []const [:0]const u8,
     run: *const Run,
 };

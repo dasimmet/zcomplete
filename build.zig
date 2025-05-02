@@ -81,6 +81,12 @@ pub fn build(b: *std.Build) void {
         run_cmd.addArgs(args);
     } else {
         run_cmd.addFileArg(example.getEmittedBin());
+        b.getInstallStep().dependOn(
+            &b.addInstallFile(
+                run_cmd.addOutputFileArg("example.wasm"),
+                "bin/example.wasm",
+            ).step,
+        );
     }
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
@@ -100,8 +106,10 @@ pub fn addZComplete(b: *std.Build, exe: *std.Build.Step.Compile, zcomplete: *std
             .os_tag = .freestanding,
         }),
         .optimize = .ReleaseSmall,
+        .strip = true,
     });
     spec_exe.rdynamic = true;
+    spec_exe.export_table = true;
     spec_exe.entry = .disabled;
     spec_exe.root_module.addImport("specfile", spec_mod);
     spec_exe.root_module.addImport("zcomplete", zcomplete);

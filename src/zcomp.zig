@@ -17,7 +17,7 @@ pub fn main() !void {
     const args = try std.process.argsAlloc(gpa);
     defer std.process.argsFree(gpa, args);
 
-    if (args.len < 2) return error.NotEnoughArguments;
+    if (args.len < 3) return error.NotEnoughArguments;
 
     const file_bytes = try std.fs.cwd().readFileAlloc(
         gpa,
@@ -55,7 +55,8 @@ pub fn main() !void {
             });
             bytes = file_bytes[ofs .. ofs + shdr.sh_size];
             // std.log.info("found: {s}", .{bytes});
-            var out_fd = try std.fs.cwd().createFile("test.wasm", .{});
+
+            var out_fd = try std.fs.cwd().createFile(args[2], .{});
             defer out_fd.close();
             try out_fd.writeAll(bytes);
 
@@ -63,13 +64,6 @@ pub fn main() !void {
         }
     }
     if (bytes.len == 0) return error.ElfSectionNotFound;
-    // try zelf.printObject(
-    //     object,
-    //     .{
-    //         .shdrs = true,
-    //     },
-    //     std.io.getStdOut().writer(),
-    // );
 
     var store = Store.init(gpa);
     defer store.deinit();

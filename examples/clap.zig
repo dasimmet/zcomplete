@@ -1,15 +1,15 @@
 // These are our subcommands.
-const SubCommands = enum {
+pub const SubCommands = enum {
     help,
     math,
 };
 
-const main_parsers = .{
+pub const main_parsers = .{
     .command = clap.parsers.enumeration(SubCommands),
 };
 
 // The parameters for `main`. Parameters for the subcommands are specified further down.
-const main_params = clap.parseParamsComptime(
+pub const main_params = clap.parseParamsComptime(
     \\-h, --help  Display this help and exit.
     \\<command>
     \\
@@ -56,20 +56,22 @@ pub fn main() !void {
     }
 }
 
+pub const math_params = clap.parseParamsComptime(
+    \\-h, --help  Display this help and exit.
+    \\-a, --add   Add the two numbers
+    \\-s, --sub   Subtract the two numbers
+    \\<isize>
+    \\<isize>
+    \\
+);
+
 fn mathMain(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
     // The parent arguments are not used here, but there are cases where it might be useful, so
     // this example shows how to pass the arguments around.
     _ = main_args;
 
     // The parameters for the subcommand.
-    const params = comptime clap.parseParamsComptime(
-        \\-h, --help  Display this help and exit.
-        \\-a, --add   Add the two numbers
-        \\-s, --sub   Subtract the two numbers
-        \\<isize>
-        \\<isize>
-        \\
-    );
+    const params = math_params;
 
     // Here we pass the partially parsed argument iterator.
     var diag = clap.Diagnostic{};

@@ -2,6 +2,9 @@ const zcomplete = @import("zcomplete");
 const specfile = @import("specfile");
 const std = @import("std");
 
+var arena = std.heap.ArenaAllocator.init(std.heap.wasm_allocator);
+const allocator = arena.allocator();
+
 comptime {
     // if (std.meta.hasFn(root, "run_zcomplete")) {
     @export(&zcomplete_alloc, .{
@@ -16,7 +19,7 @@ comptime {
 }
 
 fn zcomplete_alloc(len: isize) callconv(.C) [*]u8 {
-    const ptr = std.heap.wasm_allocator.alloc(
+    const ptr = allocator.alloc(
         u8,
         @bitCast(len),
     ) catch unreachable;
@@ -25,8 +28,11 @@ fn zcomplete_alloc(len: isize) callconv(.C) [*]u8 {
 
 fn zcomplete_run(run: *zcomplete.Args) callconv(.C) isize {
     _ = run;
-    var zc: zcomplete.AutoComplete = undefined;
-    zc.run = &specfile.run_zcomplete;
+    var zc: zcomplete.AutoComplete = .{
+        .allocator = std.heap.wasm_allocator,
+        .run = &specfile.run_zcomplete,
+        .args = &.{},
+    };
     zc.run(&zc);
     return 0;
 }
