@@ -45,6 +45,16 @@ pub const Response = struct {
             const res: *Serialized = @alignCast(@ptrCast(acc.items.ptr));
             res.offset = header_size;
             acc.appendSlice(gpa, &@as([4]u8, @bitCast(@intFromEnum(self.*)))) catch unreachable;
+            switch (self.*) {
+                .unknown => {},
+                .fill_options => |opts| {
+                    for (opts) |opt| {
+                        acc.appendSlice(gpa, opt) catch unreachable;
+                        acc.append(gpa, 0) catch unreachable;
+                    }
+                },
+                else => {},
+            }
             res.len = @intCast(acc.items.len - header_size);
             return res;
         }
@@ -56,13 +66,22 @@ pub const Response = struct {
             const acc = gpa.create(Options) catch unreachable;
             acc.* = .unknown;
             var ptr: [*]u8 = @alignCast(@ptrCast(self));
-            const tag: i32 = @as(*i32, @alignCast(@ptrCast(ptr[8..13]))).*;
-            std.log.err("xxxx: {x}", .{ptr[8..13]});
+            const slice = ptr[@intCast(self.offset)..@intCast(self.offset + self.len)];
+            std.log.err("xxxx: {x}", .{slice});
+            const tag: i32 = @as(*i32, @alignCast(@ptrCast(slice[0..4]))).*;
             const tag_enum: std.meta.Tag(Options) = @enumFromInt(tag);
             switch (tag_enum) {
                 .unknown => acc.* = .unknown,
                 .fill_options => {
-                    acc.* = .{ .fill_options = &.{} };
+                    var array = std.ArrayListUnmanaged([]const u8).empty;
+                    var last_zero: usize = 0;
+                    for (slice[4..], 0..) |c, i| {
+                        if (c == 0) {
+                            array.append(gpa, slice[4 + last_zero .. 4 + i]) catch unreachable;
+                            last_zero = i;
+                        }
+                    }
+                    acc.* = .{ .fill_options = array.toOwnedSlice(gpa) catch unreachable };
                 },
                 else => {},
             }
@@ -70,3 +89,13 @@ pub const Response = struct {
         }
     };
 };
+
+pub fn pack_args(args: []const []const u8, out: []u8) void {
+    var pos: usize = 0;
+    for (args) |arg| {
+        @memcpy(out[pos .. pos + arg.len], arg);
+        pos += arg.len;
+        out[pos] = 0;
+        pos += 1;
+    }
+}

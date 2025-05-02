@@ -105,8 +105,6 @@ pub fn build(b: *std.Build) void {
         run_cmd.addArg("as");
         run_cmd.addArg("abc5");
         run_cmd.addArg("abc5");
-        run_cmd.addArg("abc5");
-        run_cmd.addArg("abc5");
     }
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);

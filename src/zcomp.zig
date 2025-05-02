@@ -106,8 +106,8 @@ pub fn main() !void {
         size += arg.len + 1;
     }
 
-    std.debug.print("buf: {s} size: {d}\n", .{
-        wbuf.buf[@sizeOf(zcomplete.Args)..], wbuf.buf.len,
+    std.debug.print("buf: {s} size: {d} args: {d}\n", .{
+        wbuf.buf[@sizeOf(zcomplete.Args)..], wbuf.buf.len, args[3..].len,
     });
 
     const serialized = try run(mem, &instance, wbuf);

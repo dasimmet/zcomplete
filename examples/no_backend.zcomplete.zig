@@ -5,7 +5,7 @@ pub fn run_zcomplete(a: *zcomplete.AutoComplete) void {
     a.respond(switch (a.args.len) {
         0 => .unknown,
         1 => .unknown,
-        4 => .fillOptions(&.{
+        2, 3, 4, 5, 6, 7 => .fillOptions(&.{
             "--help",
             "--version",
         }),
