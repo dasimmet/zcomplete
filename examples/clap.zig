@@ -4,20 +4,22 @@ pub const SubCommands = enum {
     math,
 };
 
-pub const main_parsers = .{
+const main_parsers = .{
     .command = clap.parsers.enumeration(SubCommands),
 };
 
 // The parameters for `main`. Parameters for the subcommands are specified further down.
-pub const main_params = clap.parseParamsComptime(
+pub const main_params =
     \\-h, --help  Display this help and exit.
     \\<command>
     \\
-);
+;
+
+const main_clap = clap.parseParamsComptime(main_params);
 
 // To pass around arguments returned by clap, `clap.Result` and `clap.ResultEx` can be used to
 // get the return type of `clap.parse` and `clap.parseEx`.
-const MainArgs = clap.ResultEx(clap.Help, &main_params, main_parsers);
+const MainArgs = clap.ResultEx(clap.Help, &main_clap, main_parsers);
 
 pub fn main() !void {
     var gpa_state = std.heap.GeneralPurposeAllocator(.{}){};
@@ -30,7 +32,7 @@ pub fn main() !void {
     _ = iter.next();
 
     var diag = clap.Diagnostic{};
-    var res = clap.parseEx(clap.Help, &main_params, main_parsers, &iter, .{
+    var res = clap.parseEx(clap.Help, &main_clap, main_parsers, &iter, .{
         .diagnostic = &diag,
         .allocator = gpa,
 
@@ -56,14 +58,14 @@ pub fn main() !void {
     }
 }
 
-pub const math_params = clap.parseParamsComptime(
+pub const math_params =
     \\-h, --help  Display this help and exit.
     \\-a, --add   Add the two numbers
     \\-s, --sub   Subtract the two numbers
     \\<isize>
     \\<isize>
     \\
-);
+;
 
 fn mathMain(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
     // The parent arguments are not used here, but there are cases where it might be useful, so
@@ -71,7 +73,7 @@ fn mathMain(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: M
     _ = main_args;
 
     // The parameters for the subcommand.
-    const params = math_params;
+    const params = comptime clap.parseParamsComptime(math_params);
 
     // Here we pass the partially parsed argument iterator.
     var diag = clap.Diagnostic{};

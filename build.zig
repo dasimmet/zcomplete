@@ -2,6 +2,7 @@ const std = @import("std");
 const LazyPath = std.Build.LazyPath;
 
 pub const Backend = enum {
+    no_backend,
     clap,
 };
 
@@ -27,6 +28,7 @@ pub fn build(b: *std.Build) void {
 
     if (backend_module == null) {
         switch (backend) {
+            .no_backend => {},
             .clap => {
                 if (b.lazyDependency("clap", .{})) |clap| {
                     backend_module = clap.module("clap");
@@ -42,11 +44,22 @@ pub fn build(b: *std.Build) void {
     const zcomplete = b.addModule("zcomplete", .{
         .root_source_file = b.path("src/zcomplete.zig"),
     });
-    zcomplete.addImport("backend", backend_module.?);
+    if (backend_module) |bm| {
+        zcomplete.addImport("backend", bm);
+    }
     const zcomplete_options = b.addOptions();
     zcomplete_options.addOption(Backend, "backend", backend);
     zcomplete_options.addOption(bool, "wasm_mode", false);
     zcomplete.addOptions("options", zcomplete_options);
+
+    const no_backend_exe = b.addExecutable(.{
+        .name = "no_backend-example",
+        .root_source_file = b.path("examples/no_backend.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    addZComplete(b, no_backend_exe, zcomplete, b.path("examples/no_backend.zcomplete.zig"));
+    b.installArtifact(no_backend_exe);
 
     const example = switch (backend) {
         .clap => blk: {
@@ -61,6 +74,7 @@ pub fn build(b: *std.Build) void {
             b.installArtifact(clap_exe);
             break :blk clap_exe;
         },
+        .no_backend => no_backend_exe,
     };
 
     const exe = b.addExecutable(.{
@@ -77,6 +91,7 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(exe);
 
     const run_cmd = b.addRunArtifact(exe);
+    run_cmd.has_side_effects = true;
     if (b.args) |args| {
         run_cmd.addArgs(args);
     } else {
@@ -87,6 +102,11 @@ pub fn build(b: *std.Build) void {
                 "bin/example.wasm",
             ).step,
         );
+        run_cmd.addArg("as");
+        run_cmd.addArg("abc5");
+        run_cmd.addArg("abc5");
+        run_cmd.addArg("abc5");
+        run_cmd.addArg("abc5");
     }
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
@@ -116,19 +136,19 @@ pub fn addZComplete(b: *std.Build, exe: *std.Build.Step.Compile, zcomplete: *std
 
     exe.setLinkerScript(zcomplete_ldgen(b, spec_exe.getEmittedBin()));
 
-    if (b.option(bool, "wat", "wat") orelse false) {
-        if (b.lazyImport(@This(), "wabt")) |wabt| {
-            const my_wat: LazyPath = wabt.wasm2wat(
-                b,
-                spec_exe.getEmittedBin(),
-                "spec.wat",
-                &.{},
-            );
-            b.getInstallStep().dependOn(
-                &b.addInstallFile(my_wat, "bin/spec.wat").step,
-            );
-        }
-    }
+    // if (b.option(bool, "wat", "wat") orelse false) {
+    //     if (b.lazyImport(@This(), "wabt")) |wabt| {
+    //         const my_wat: LazyPath = wabt.wasm2wat(
+    //             b,
+    //             spec_exe.getEmittedBin(),
+    //             "spec.wat",
+    //             &.{},
+    //         );
+    //         b.getInstallStep().dependOn(
+    //             &b.addInstallFile(my_wat, "bin/spec.wat").step,
+    //         );
+    //     }
+    // }
 }
 
 pub fn zcomplete_ldgen(b: *std.Build, src_exe: LazyPath) LazyPath {

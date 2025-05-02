@@ -75,13 +75,76 @@ pub fn main() !void {
     var instance = Instance.init(gpa, &store, module);
     try instance.instantiate();
     defer instance.deinit();
+    const mem = try instance.getMemory(0);
 
-    const n = 39;
-    var in = [1]u64{n};
-    var out = [1]u64{0};
+    var size: usize = @sizeOf(zcomplete.Args);
+    for (args[3..]) |arg| {
+        size += arg.len + 1;
+    }
 
-    try instance.invoke("fib", in[0..], out[0..], .{});
+    const wbuf = try alloc(mem, &instance, size);
 
-    const result: i32 = @bitCast(@as(u32, @truncate(out[0])));
-    std.debug.print("fib({}) = {}\n", .{ n, result });
+    std.debug.print("buf: {s}\n", .{
+        wbuf.buf,
+    });
+
+    const autocomp: *zcomplete.Args = @alignCast(@ptrCast(wbuf.buf.ptr));
+    autocomp.* = .{
+        .offset = @intCast(@sizeOf(zcomplete.Args)),
+        .len = @as(i32, @intCast(size)) - @sizeOf(zcomplete.Args),
+    };
+
+    var pos: usize = @sizeOf(zcomplete.Args);
+    for (args[3..]) |arg| {
+        @memcpy(wbuf.buf[pos .. pos + arg.len], arg);
+        pos += arg.len;
+        wbuf.buf[pos] = 0;
+        pos += 1;
+    }
+
+    for (args[3..]) |arg| {
+        size += arg.len + 1;
+    }
+
+    std.debug.print("buf: {s} size: {d}\n", .{
+        wbuf.buf[@sizeOf(zcomplete.Args)..], wbuf.buf.len,
+    });
+
+    const serialized = try run(mem, &instance, wbuf);
+
+    std.debug.print("out: {any}\n", .{
+        serialized,
+    });
+    const parsed = serialized.parse(gpa);
+
+    std.debug.print("out: {any}\n", .{
+        parsed,
+    });
+}
+
+pub const Slice = struct {
+    ptr: usize,
+    buf: []u8,
+};
+
+pub fn alloc(mem: *zware.Memory, instance: *zware.Instance, count: usize) !Slice {
+    var in: [1]u64 = @splat(count);
+    var out: [1]u64 = @splat(0);
+    try instance.invoke("alloc", &in, &out, .{});
+    return deref(mem, out[0], count);
+}
+
+pub fn run(mem: *zware.Memory, instance: *zware.Instance, inbuf: Slice) !*zcomplete.Response.Serialized {
+    var in: [1]u64 = @splat(inbuf.ptr);
+    var out: [1]u64 = @splat(0);
+    try instance.invoke("run", &in, &out, .{});
+    const res = try deref(mem, out[0], @sizeOf(zcomplete.Response.Serialized));
+    return @alignCast(@ptrCast(res.buf));
+}
+
+pub fn deref(mem: *zware.Memory, ptr: usize, len: usize) !Slice {
+    return .{
+        .ptr = ptr,
+        .buf = mem.memory()[ptr .. ptr + len],
+    };
 }
