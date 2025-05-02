@@ -9,6 +9,10 @@ const Instance = zware.Instance;
 const Object = @import("elf/Object.zig");
 const zelf = @import("elf/zelf.zig");
 
+pub const std_options: std.Options = .{
+    .log_level = .debug,
+};
+
 pub fn main() !void {
     var gpa_alloc = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa_alloc.deinit();
@@ -116,10 +120,17 @@ pub fn main() !void {
         serialized,
     });
     const parsed = serialized.parse(gpa);
-
     std.debug.print("out: {any}\n", .{
         parsed,
     });
+
+    switch (parsed.*) {
+        .unknown => {},
+        .fill_options => |opts| {
+            std.log.err("opts: {s}", .{opts});
+        },
+        else => {},
+    }
 }
 
 pub const Slice = struct {
