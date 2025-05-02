@@ -6,8 +6,8 @@
 
     .dependencies = .{
         .zware = .{
-            .url = "git+https://github.com/dasimmet/zware.git#e4fa071073735f8e386864099cc192afdab11985",
-            .hash = "zware-0.0.1-ZA7j6VXmBACt0CYpjSDk7zGB_BYdEk4iFUOaw112v1oq",
+            .url = "git+https://github.com/malcolmstill/zware.git#755d56fc47cebd9dedd6bbeba753e969f6e5187e",
+            .hash = "zware-0.0.1-ZA7j6X3jBABhBIltmAF9N6OP7VTsgFP3O1xPkgiaCY_t",
         },
         .clap = .{
             .url = "git+https://github.com/Hejsil/zig-clap.git#a4e784da8399c51d5eeb5783e6a485b960d5c1f9",

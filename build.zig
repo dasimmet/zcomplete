@@ -48,8 +48,8 @@ pub fn build(b: *std.Build) void {
     zcomplete_options.addOption(bool, "wasm_mode", false);
     zcomplete.addOptions("options", zcomplete_options);
 
-    switch (backend) {
-        .clap => {
+    const example = switch (backend) {
+        .clap => blk: {
             const clap_exe = b.addExecutable(.{
                 .name = "clap-example",
                 .root_source_file = b.path("examples/clap.zig"),
@@ -59,17 +59,31 @@ pub fn build(b: *std.Build) void {
             clap_exe.root_module.addImport("clap", backend_module.?);
             addZComplete(b, clap_exe, zcomplete, b.path("examples/clap.zcomplete.zig"));
             b.installArtifact(clap_exe);
+            break :blk clap_exe;
         },
+    };
+
+    const exe = b.addExecutable(.{
+        .name = "zcomp",
+        .root_source_file = b.path("src/zcomp.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    exe.root_module.addImport("zcomplete", zcomplete);
+    exe.root_module.addImport("zware", b.dependency("zware", .{
+        .target = target,
+        .optimize = optimize,
+    }).module("zware"));
+    b.installArtifact(exe);
+
+    const run_cmd = b.addRunArtifact(exe);
+    if (b.args) |args| {
+        run_cmd.addArgs(args);
+    } else {
+        run_cmd.addFileArg(example.getEmittedBin());
     }
-
-    // const run_cmd = b.addRunArtifact(clap_exe);
-    // run_cmd.step.dependOn(b.getInstallStep());
-
-    // if (b.args) |args| {
-    //     run_cmd.addArgs(args);
-    // }
-    // const run_step = b.step("run", "Run the app");
-    // run_step.dependOn(&run_cmd.step);
+    const run_step = b.step("run", "Run the app");
+    run_step.dependOn(&run_cmd.step);
 }
 
 pub fn addZComplete(b: *std.Build, exe: *std.Build.Step.Compile, zcomplete: *std.Build.Module, specfile: LazyPath) void {
