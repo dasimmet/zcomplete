@@ -14,8 +14,8 @@
             .hash = "clap-0.10.0-oBajB8fkAQB0JvsrWLar4YZrseSZ9irFxHB7Hvy_bvxb",
         },
         .wabt = .{
-            .url = "git+https://github.com/dasimmet/wabt.git#e304325216b8b9c36ad3bdbe66fba8ca0bc59060",
-            .hash = "wabt-1.0.36-Ko1XWqiYAACLspwEX3aqbni_hTljaNMiFdDQODsEecBD",
+            .url = "git+https://github.com/dasimmet/wabt.git#f76733bbdd783fd30d76d3a770364a4f05ae0655",
+            .hash = "wabt-1.0.36-Ko1XWn2YAADo9NpGhGnaDOhORgYkrQSZ23NFrPA61PLp",
         },
     },
 
