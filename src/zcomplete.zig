@@ -1,6 +1,7 @@
 pub const options = @import("options");
 pub const backend = switch (options.backend) {
     .clap => @import("backend"),
+    .no_backend => struct {},
 };
 const std = @import("std");
 
@@ -8,13 +9,13 @@ pub const AutoComplete = struct {
     id: i32,
     allocator: std.mem.Allocator,
     args: []const [:0]const u8,
-    response: ?Response.Options = null,
+    response: Response.Options = .unknown,
 
     pub fn respond(self: *@This(), opt: Response.Options) void {
         self.response = opt;
     }
     pub fn serialize(self: *@This()) *Response.Serialized {
-        return self.response.?.serialize(self.allocator);
+        return self.response.serialize(self.allocator);
     }
 };
 

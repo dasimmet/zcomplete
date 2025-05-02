@@ -3,14 +3,17 @@ const clap = zcomplete.backend;
 const root = @import("clap.zig");
 const std = @import("std");
 
-pub fn run_zcomplete(a: *zcomplete.AutoComplete) void {
-    _ = root.main;
-    _ = a;
+const main_parsers = .{
+    .command = clap.parsers.enumeration(root.SubCommands),
+};
+const main_clap = clap.parseParamsComptime(root.main_params);
+
+pub fn zcomp(a: *zcomplete.AutoComplete) void {
     // var diag = clap.Diagnostic{};
     // var res = clap.parseEx(
     //     clap.Help,
-    //     &root.main_params,
-    //     root.main_parsers,
+    //     &main_clap,
+    //     main_parsers,
     //     null,
     //     .{
     //         .diagnostic = &diag,
@@ -22,4 +25,5 @@ pub fn run_zcomplete(a: *zcomplete.AutoComplete) void {
     //     return err;
     // };
     // defer res.deinit();
+    a.respond(.unknown);
 }

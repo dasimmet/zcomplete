@@ -38,6 +38,6 @@ fn zcomplete_run(args: *zcomplete.Args) callconv(.C) *zcomplete.Response.Seriali
         }
     }
     autocomplete.args = array.toOwnedSlice(allocator) catch unreachable;
-    specfile.run_zcomplete(autocomplete);
+    specfile.zcomp(autocomplete);
     return autocomplete.serialize();
 }
