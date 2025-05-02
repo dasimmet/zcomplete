@@ -1,2 +1,8 @@
 const std = @import("std");
-pub fn main() !void {}
+
+pub const std_options = std.Options{
+    .log_level = .debug,
+};
+pub fn main() !void {
+    std.log.info("hello world!", .{});
+}
