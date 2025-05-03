@@ -97,6 +97,7 @@ pub const Response = struct {
             switch (self) {
                 else => {},
                 .fill_options => |fo| {
+                    for (fo) |opt| gpa.free(opt);
                     gpa.free(fo);
                 },
             }
@@ -159,7 +160,8 @@ pub const Response = struct {
                     var last_zero: usize = 0;
                     for (slice[4..], 0..) |c, i| {
                         if (c == 0) {
-                            try array.append(gpa, slice[4 + last_zero .. 4 + i]);
+                            const duped = try gpa.dupe(u8, slice[4 + last_zero .. 4 + i]);
+                            try array.append(gpa, duped);
                             last_zero = i;
                         }
                     }
