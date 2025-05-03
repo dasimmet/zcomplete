@@ -111,12 +111,15 @@ pub fn complete(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
     std.debug.print("out: {any}\n", .{
         serialized,
     });
-    const parsed = serialized.parse(gpa);
+
+    const parsed = try serialized.parse(gpa);
+    defer parsed.deinit(gpa);
+
     std.debug.print("out: {any}\n", .{
         parsed,
     });
 
-    switch (parsed.*) {
+    switch (parsed) {
         .unknown => {},
         .fill_options => |opts| {
             std.log.err("opts: {s}", .{opts});

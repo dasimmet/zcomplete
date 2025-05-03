@@ -25,6 +25,24 @@ pub const Run = fn (*AutoComplete) void;
 pub const Args = packed struct {
     offset: i32,
     len: i32,
+
+    pub fn readSlice(self: *@This()) []u8 {
+        var ptr: [*]u8 = @alignCast(@ptrCast(self));
+        return ptr[@intCast(self.offset)..@intCast(self.offset + self.len)];
+    }
+
+    pub fn parse(self: *@This(), gpa: std.mem.Allocator) ![]const [:0]const u8 {
+        const slice = self.readSlice();
+        var array = std.ArrayListUnmanaged([:0]const u8).empty;
+        var last_zero: usize = 0;
+        for (slice, 0..) |c, i| {
+            if (c == 0) {
+                try array.append(gpa, @ptrCast(slice[last_zero..i]));
+                last_zero = i + 1;
+            }
+        }
+        return array.toOwnedSlice(gpa);
+    }
 };
 
 pub const Response = struct {
@@ -32,6 +50,15 @@ pub const Response = struct {
         unknown,
         fill_options: []const []const u8,
         _,
+
+        pub fn deinit(self: @This(), gpa: std.mem.Allocator) void {
+            switch (self) {
+                else => {},
+                .fill_options => |fo| {
+                    gpa.free(fo);
+                },
+            }
+        }
 
         pub fn fillOptions(fo: []const []const u8) @This() {
             return .{ .fill_options = fo };
@@ -61,33 +88,41 @@ pub const Response = struct {
             return res;
         }
     };
+
     pub const Serialized = packed struct {
         offset: i32,
         len: i32,
-        pub fn parse(self: *@This(), gpa: std.mem.Allocator) *Options {
-            const acc = gpa.create(Options) catch unreachable;
-            acc.* = .unknown;
+
+        pub fn deinit(self: *@This(), gpa: std.mem.Allocator) void {
+            gpa.free(self.readSlice());
+            gpa.free(self);
+        }
+
+        pub fn readSlice(self: *@This()) []u8 {
             var ptr: [*]u8 = @alignCast(@ptrCast(self));
-            const slice = ptr[@intCast(self.offset)..@intCast(self.offset + self.len)];
+            return ptr[@intCast(self.offset)..@intCast(self.offset + self.len)];
+        }
+
+        pub fn parse(self: *@This(), gpa: std.mem.Allocator) !Options {
+            const slice = self.readSlice();
             std.log.err("xxxx: {x}", .{slice});
             const tag: i32 = @as(*i32, @alignCast(@ptrCast(slice[0..4]))).*;
             const tag_enum: std.meta.Tag(Options) = @enumFromInt(tag);
             switch (tag_enum) {
-                .unknown => acc.* = .unknown,
+                .unknown => return .unknown,
                 .fill_options => {
                     var array = std.ArrayListUnmanaged([]const u8).empty;
                     var last_zero: usize = 0;
                     for (slice[4..], 0..) |c, i| {
                         if (c == 0) {
-                            array.append(gpa, slice[4 + last_zero .. 4 + i]) catch unreachable;
+                            try array.append(gpa, slice[4 + last_zero .. 4 + i]);
                             last_zero = i;
                         }
                     }
-                    acc.* = .{ .fill_options = array.toOwnedSlice(gpa) catch unreachable };
+                    return .{ .fill_options = try array.toOwnedSlice(gpa) };
                 },
-                else => {},
+                else => return .unknown,
             }
-            return acc;
         }
     };
 };
