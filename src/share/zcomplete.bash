@@ -7,4 +7,4 @@ _zcomplete() {
   mapfile -t COMPREPLY < <( compgen -W "$CMDREPLY" -- "$cur")
 }
 
-complete -F _zcomplete zcomp
+complete -o filenames -F _zcomplete zcomp

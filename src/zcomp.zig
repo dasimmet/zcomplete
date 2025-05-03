@@ -66,18 +66,15 @@ pub fn bash(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
         .fill_options => |opts| {
             if (cur > 0) {
                 const cur_arg = argv[cur - 1];
-                for (opts) |opt| {
+                outer: for (opts) |opt| {
                     if (std.mem.startsWith(u8, opt, cur_arg)) {
-                        var quote = false;
                         for (opt) |c| {
-                            if (std.ascii.isWhitespace(c)) quote = true;
-                            break;
+                            if (std.ascii.isWhitespace(c)) {
+                                try stdout.print("\"{s}\"\n", .{opt});
+                                continue :outer;
+                            }
                         }
-                        if (quote) {
-                            try stdout.print("\"{s}\"\n", .{opt});
-                        } else {
-                            try stdout.print("{s}\n", .{opt});
-                        }
+                        try stdout.print("{s}\n", .{opt});
                     }
                 }
             }

@@ -5,7 +5,8 @@ Works like this:
 
 - Generate a separate .wasm version of your program's argument parser
 - embed `wasm` in a special `zcomplete` ELF section using linker script
-- extract and instanciate `wasm` with `zware` -> pass in the current command
+- when pressing `<TAB>` in bash,
+  extract and instanciate `wasm` section with `zware` -> pass in the current command
   line and the current arg to be completed
 - evaluate the response and generate bash completion
 - SUCCESS!
