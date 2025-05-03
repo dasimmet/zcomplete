@@ -95,13 +95,14 @@ pub fn build(b: *std.Build) void {
     if (b.args) |args| {
         run_cmd.addArgs(args);
     } else {
+        run_cmd.addArg("complete");
         run_cmd.addFileArg(example.getEmittedBin());
-        const extract_wasm = b.addInstallFile(
-            run_cmd.addOutputFileArg("example.wasm"),
-            "bin/example.wasm",
-        );
-        // _ = extract_wasm;
-        b.getInstallStep().dependOn(&extract_wasm.step);
+        // const extract_wasm = b.addInstallFile(
+        //     run_cmd.addOutputFileArg("example.wasm"),
+        //     "bin/example.wasm",
+        // );
+        // // _ = extract_wasm;
+        // b.getInstallStep().dependOn(&extract_wasm.step);
         run_cmd.addArg("as");
         run_cmd.addArg("abc5");
         run_cmd.addArg("abc5");
@@ -132,7 +133,7 @@ pub fn addZComplete(b: *std.Build, exe: *std.Build.Step.Compile, zcomplete: *std
     spec_exe.root_module.addImport("specfile", spec_mod);
     spec_exe.root_module.addImport("zcomplete", zcomplete);
 
-    exe.setLinkerScript(zcomplete_ldgen(b, spec_exe.getEmittedBin()));
+    exe.setLinkerScript(zcomplete_ldgen(b, zcomplete, spec_exe.getEmittedBin()));
 
     // if (b.option(bool, "wat", "wat") orelse false) {
     //     if (b.lazyImport(@This(), "wabt")) |wabt| {
@@ -149,13 +150,14 @@ pub fn addZComplete(b: *std.Build, exe: *std.Build.Step.Compile, zcomplete: *std
     // }
 }
 
-pub fn zcomplete_ldgen(b: *std.Build, src_exe: LazyPath) LazyPath {
+pub fn zcomplete_ldgen(b: *std.Build, zcomplete: *std.Build.Module, src_exe: LazyPath) LazyPath {
     const ldgen = b.addExecutable(.{
         .name = "ldgen",
         .target = b.graph.host,
         .optimize = .Debug,
         .root_source_file = b.path("src/ldgen.zig"),
     });
+    ldgen.root_module.addImport("zcomplete", zcomplete);
     const run = b.addRunArtifact(ldgen);
     run.addFileArg(src_exe);
     return run.addOutputFileArg("ldgen.ld");

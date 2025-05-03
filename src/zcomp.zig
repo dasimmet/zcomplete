@@ -21,53 +21,45 @@ pub fn main() !void {
     const args = try std.process.argsAlloc(gpa);
     defer std.process.argsFree(gpa, args);
 
-    if (args.len < 3) return error.NotEnoughArguments;
+    if (args.len < 2) return error.NotEnoughArguments;
 
-    const file_bytes = try std.fs.cwd().readFileAlloc(
-        gpa,
-        args[1],
-        std.math.maxInt(u32),
-    );
-    defer gpa.free(file_bytes);
-
-    var arena_alloc = std.heap.ArenaAllocator.init(gpa);
-    defer arena_alloc.deinit();
-    const arena = arena_alloc.allocator();
-
-    var object = Object{
-        .arena = arena,
-        .data = file_bytes,
-        .path = args[1],
-        .opts = .{},
-    };
-    object.parse() catch |err| switch (err) {
-        error.InvalidMagic => @panic("not an ELF file - invalid magic bytes"),
-        else => |e| return e,
-    };
-
-    var bytes: []const u8 = "";
-    for (object.shdrs.items) |shdr| {
-        const sh_name = object.getShString(shdr.sh_name);
-        if (std.mem.eql(u8, sh_name, ".zcomplete")) {
-            const ofs = shdr.sh_offset;
-            std.log.info("here: {s} 0x{x} 0x{x} 0x{x} 0x{x}", .{
-                sh_name,
-                ofs,
-                shdr.sh_addr,
-                shdr.sh_offset,
-                shdr.sh_size,
-            });
-            bytes = file_bytes[ofs .. ofs + shdr.sh_size];
-            // std.log.info("found: {s}", .{bytes});
-
-            var out_fd = try std.fs.cwd().createFile(args[2], .{});
-            defer out_fd.close();
-            try out_fd.writeAll(bytes);
-
-            break;
+    inline for (&.{
+        .{ "extract", extract },
+        .{ "complete", complete },
+    }) |cmd| {
+        if (std.mem.eql(u8, cmd[0], args[1])) {
+            return cmd[1](gpa, args[2..]);
         }
     }
-    if (bytes.len == 0) return error.ElfSectionNotFound;
+
+    return error.UnknownCommand;
+}
+
+pub fn extract(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
+    if (args.len < 2) return error.NotEnoughArguments;
+
+    const bytes = (try findElfbin(
+        gpa,
+        args[0],
+        zcomplete.linker_section_name,
+    )) orelse return error.ElfSectionNotFound;
+    defer gpa.free(bytes);
+
+    try std.fs.cwd().writeFile(.{
+        .sub_path = args[1],
+        .data = bytes,
+    });
+}
+
+pub fn complete(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
+    if (args.len < 1) return error.NotEnoughArguments;
+
+    const bytes = (try findElfbin(
+        gpa,
+        args[0],
+        zcomplete.linker_section_name,
+    )) orelse return error.ElfSectionNotFound;
+    defer gpa.free(bytes);
 
     var store = Store.init(gpa);
     defer store.deinit();
@@ -82,7 +74,7 @@ pub fn main() !void {
     const mem = try instance.getMemory(0);
 
     var size: usize = @sizeOf(zcomplete.Args);
-    for (args[3..]) |arg| {
+    for (args[1..]) |arg| {
         size += arg.len + 1;
     }
 
@@ -99,19 +91,19 @@ pub fn main() !void {
     };
 
     var pos: usize = @sizeOf(zcomplete.Args);
-    for (args[3..]) |arg| {
+    for (args[1..]) |arg| {
         @memcpy(wbuf.buf[pos .. pos + arg.len], arg);
         pos += arg.len;
         wbuf.buf[pos] = 0;
         pos += 1;
     }
 
-    for (args[3..]) |arg| {
+    for (args[1..]) |arg| {
         size += arg.len + 1;
     }
 
     std.debug.print("buf: {s} size: {d} args: {d}\n", .{
-        wbuf.buf[@sizeOf(zcomplete.Args)..], wbuf.buf.len, args[3..].len,
+        wbuf.buf[@sizeOf(zcomplete.Args)..], wbuf.buf.len, args[1..].len,
     });
 
     const serialized = try run(mem, &instance, wbuf);
@@ -131,6 +123,45 @@ pub fn main() !void {
         },
         else => {},
     }
+}
+
+pub fn findElfbin(gpa: std.mem.Allocator, file: [:0]const u8, section_name: []const u8) !?[]u8 {
+    var arena_alloc = std.heap.ArenaAllocator.init(gpa);
+    defer arena_alloc.deinit();
+    const arena = arena_alloc.allocator();
+
+    const file_bytes = try std.fs.cwd().readFileAlloc(
+        arena,
+        file,
+        std.math.maxInt(u32),
+    );
+
+    var object = Object{
+        .arena = arena,
+        .data = file_bytes,
+        .path = file,
+        .opts = .{},
+    };
+    object.parse() catch |err| switch (err) {
+        error.InvalidMagic => @panic("not an ELF file - invalid magic bytes"),
+        else => |e| return e,
+    };
+
+    for (object.shdrs.items) |shdr| {
+        const sh_name = object.getShString(shdr.sh_name);
+        if (std.mem.eql(u8, sh_name, section_name)) {
+            const ofs = shdr.sh_offset;
+            std.log.info("here: {s} 0x{x} 0x{x} 0x{x} 0x{x}", .{
+                sh_name,
+                ofs,
+                shdr.sh_addr,
+                shdr.sh_offset,
+                shdr.sh_size,
+            });
+            return try gpa.dupe(u8, file_bytes[ofs .. ofs + shdr.sh_size]);
+        }
+    }
+    return null;
 }
 
 pub const Slice = struct {

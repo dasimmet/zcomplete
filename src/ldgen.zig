@@ -1,4 +1,5 @@
 const std = @import("std");
+const zcomplete = @import("zcomplete");
 
 pub fn main() !void {
     var gpa_alloc = std.heap.GeneralPurposeAllocator(.{}){};
@@ -24,6 +25,8 @@ pub fn main() !void {
     defer out_fd.close();
 
     try out_fd.writeAll(script_header);
+    try out_fd.writeAll(zcomplete.linker_section_name);
+    try out_fd.writeAll(script_section_header);
     for (input, 0..) |byte, i| {
         if ((i % 4) == 0) {
             try out_fd.writeAll("\n        ");
@@ -38,8 +41,10 @@ pub fn main() !void {
 const script_header =
     \\SECTIONS
     \\{
-    \\    .zcomplete : {
+    \\    
 ;
+
+const script_section_header = " : {";
 
 const script_footer =
     \\
