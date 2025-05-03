@@ -123,12 +123,14 @@ pub fn addZComplete(b: *std.Build, exe: *std.Build.Step.Compile, zcomplete: *std
         .target = b.resolveTargetQuery(.{
             .cpu_arch = .wasm32,
             .os_tag = .freestanding,
+            .abi = .none,
+            .cpu_model = .{
+                .explicit = std.Target.Cpu.Model.generic(.wasm32),
+            },
         }),
         .optimize = .ReleaseSmall,
-        .strip = true,
     });
     spec_exe.rdynamic = true;
-    spec_exe.export_table = true;
     spec_exe.entry = .disabled;
     spec_exe.root_module.addImport("specfile", spec_mod);
     spec_exe.root_module.addImport("zcomplete", zcomplete);

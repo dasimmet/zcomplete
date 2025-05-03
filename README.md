@@ -10,9 +10,22 @@ a python argcomplete inspired completion engine for zig argument parsers
 
 ## TODOs
 
-### make it work with zig master
+### make non-generic target it work with zig master
 
-zware works with 0.14.0, on master:
+at the moment we set an explicit generic target:
+
+```zig
+.target = b.resolveTargetQuery(.{
+    .cpu_arch = .wasm32,
+    .os_tag = .freestanding,
+    .abi = .none,
+    .cpu_model = .{
+        .explicit = std.Target.Cpu.Model.generic(.wasm32),
+    },
+}),
+```
+
+zware works always with 0.14.0, on master:
 
 ```
 error: ValidatorCallIndirectNoTable
