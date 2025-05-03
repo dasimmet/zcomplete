@@ -4,9 +4,18 @@ pub const linker_section_name = "zcomplete.wasm";
 
 pub const AutoComplete = struct {
     allocator: std.mem.Allocator,
+
+    // the current argument being completed.
+    // 0 means the command itself, 1 means args[0]
     cur: i32,
+
+    // the current command
     cmd: [:0]const u8,
+
+    //the current arguments on the command line
     args: []const [:0]const u8,
+
+    // the response provided by the module. use the .respond function to set it.
     response: Response.Options = .unknown,
 
     pub fn respond(self: *@This(), opt: Response.Options) void {
@@ -28,7 +37,9 @@ pub const AutoComplete = struct {
 
 pub const Args = extern struct {
     version: u8 = 1,
+    // size of the header
     offset: i32,
+    // size of header + payload
     len: i32,
     cur: i32,
 
@@ -43,14 +54,15 @@ pub const Args = extern struct {
     pub fn serialize(buf: []u8, cmd: []const u8, cur: usize, args: []const []const u8) *@This() {
         const mysize = Args.size(cmd, args);
         std.debug.assert(buf.len == mysize);
-        const autocomp: *@This() = @alignCast(@ptrCast(buf.ptr));
-        autocomp.* = .{
+        const self: *@This() = @alignCast(@ptrCast(buf.ptr));
+        self.* = .{
             .offset = @intCast(@sizeOf(@This())),
-            .len = @as(i32, @intCast(mysize)) - @sizeOf(@This()),
+            .len = @intCast(mysize),
             .cur = @intCast(cur),
         };
 
         var pos: usize = @sizeOf(@This());
+
         @memcpy(buf[pos .. pos + cmd.len], cmd);
         buf[pos + cmd.len] = 0;
         pos += cmd.len + 1;
@@ -61,26 +73,26 @@ pub const Args = extern struct {
             buf[pos] = 0;
             pos += 1;
         }
-        return autocomp;
+        return self;
     }
 
-    pub fn readSlice(self: *@This()) []u8 {
+    pub fn slice(self: *@This()) []u8 {
         var ptr: [*]u8 = @alignCast(@ptrCast(self));
-        return ptr[@intCast(self.offset)..@intCast(self.offset + self.len)];
+        return ptr[@intCast(self.offset)..@intCast(self.len)];
     }
 
     pub fn parse(self: *@This(), gpa: std.mem.Allocator) !struct {
         cmd: [:0]const u8,
         args: []const [:0]const u8,
     } {
-        const slice = self.readSlice();
+        const payload = self.slice();
         var array = std.ArrayListUnmanaged([:0]const u8).empty;
-        var cmd: [:0]const u8 = undefined;
+        var cmd: [:0]const u8 = "";
         var last_zero: usize = 0;
-        for (slice, 0..) |c, i| {
+        for (payload, 0..) |c, i| {
             if (c == 0) {
-                if (last_zero == 0) cmd = @ptrCast(slice[last_zero..i]);
-                try array.append(gpa, @ptrCast(slice[last_zero..i]));
+                if (last_zero == 0) cmd = @ptrCast(payload[last_zero..i]);
+                try array.append(gpa, @ptrCast(payload[last_zero..i]));
                 last_zero = i + 1;
             }
         }
@@ -161,40 +173,42 @@ pub const Response = struct {
                     res.tag = @intFromEnum(@This().zcomperror);
                 },
             }
-            res.len = @intCast(acc.items.len - header_size);
+            res.len = @intCast(acc.items.len);
             return res;
         }
     };
 
     pub const Serialized = extern struct {
         version: u8 = 1,
+        // size of the header
         offset: i32,
+        // size of header + payload
         len: i32,
         tag: @typeInfo(std.meta.Tag(Options)).@"enum".tag_type,
 
         pub fn deinit(self: *@This(), gpa: std.mem.Allocator) void {
-            gpa.free(self.readSlice());
+            gpa.free(self.slice());
             gpa.free(self);
         }
 
-        pub fn readSlice(self: *@This()) []u8 {
+        pub fn slice(self: *@This()) []u8 {
             var ptr: [*]u8 = @alignCast(@ptrCast(self));
-            return ptr[@intCast(self.offset)..@intCast(self.offset + self.len)];
+            return ptr[@intCast(self.offset)..@intCast(self.len)];
         }
 
         pub fn parse(self: *@This(), gpa: std.mem.Allocator) !Options {
-            const slice = self.readSlice();
+            const payload = self.slice();
             const tag_enum: std.meta.Tag(Options) = @enumFromInt(self.tag);
             // std.log.err("xxxx: {x} {}", .{ slice, tag_enum });
             switch (tag_enum) {
                 .unknown => return .unknown,
-                .zcomperror => return .{ .zcomperror = try gpa.dupe(u8, slice) },
+                .zcomperror => return .{ .zcomperror = try gpa.dupe(u8, payload) },
                 .fill_options => {
                     var array = std.ArrayListUnmanaged([]const u8).empty;
                     var slice_start: usize = 0;
-                    for (slice, 0..) |c, i| {
+                    for (payload, 0..) |c, i| {
                         if (c == 0) {
-                            const duped = try gpa.dupe(u8, slice[slice_start..i]);
+                            const duped = try gpa.dupe(u8, payload[slice_start..i]);
                             try array.append(gpa, duped);
                             slice_start = i + 1;
                         }
@@ -204,8 +218,8 @@ pub const Response = struct {
                     };
                 },
                 .int_range => {
-                    const min: i32 = @bitCast(slice[0..4].*);
-                    const max: i32 = @bitCast(slice[4..8].*);
+                    const min: i32 = @bitCast(payload[0..4].*);
+                    const max: i32 = @bitCast(payload[4..8].*);
                     return .{
                         .int_range = .{
                             .min = if (min == std.math.minInt(i32)) null else min,
