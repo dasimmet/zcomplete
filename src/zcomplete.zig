@@ -1,13 +1,14 @@
 pub const options = @import("options");
 const std = @import("std");
 pub const linker_section_name = "zcomplete.wasm";
+pub const api_version = 1;
 
 pub const AutoComplete = struct {
     allocator: std.mem.Allocator,
 
     // the current argument being completed.
     // 0 means the command itself, 1 means args[0]
-    cur: i32,
+    cur: u32,
 
     // the current command
     cmd: [:0]const u8,
@@ -36,12 +37,12 @@ pub const AutoComplete = struct {
 };
 
 pub const Args = extern struct {
-    version: u8 = 1,
+    version: u32 = api_version,
     // size of the header
-    offset: i32,
+    offset: u32,
     // size of header + payload
-    len: i32,
-    cur: i32,
+    len: u32,
+    cur: u32,
 
     pub fn size(cmd: []const u8, args: []const []const u8) usize {
         var acc: usize = @sizeOf(@This()) + cmd.len + 1;
@@ -104,7 +105,7 @@ pub const Args = extern struct {
 };
 
 pub const Response = struct {
-    pub const Options = union(enum(i32)) {
+    pub const Options = union(enum(u32)) {
         unknown,
         zcomperror: []const u8,
         fill_options: []const []const u8,
@@ -179,11 +180,11 @@ pub const Response = struct {
     };
 
     pub const Serialized = extern struct {
-        version: u8 = 1,
+        version: u32 = api_version,
         // size of the header
-        offset: i32,
+        offset: u32,
         // size of header + payload
-        len: i32,
+        len: u32,
         tag: @typeInfo(std.meta.Tag(Options)).@"enum".tag_type,
 
         pub fn deinit(self: *@This(), gpa: std.mem.Allocator) void {
