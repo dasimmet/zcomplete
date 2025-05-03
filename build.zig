@@ -91,6 +91,12 @@ pub fn build(b: *std.Build) void {
     addZComplete(b, exe, zcomplete, b.path("src/zcomp.zcomplete.zig"));
     b.installArtifact(exe);
 
+    const add_completion = b.addInstallFile(
+        b.path("src/share/zcomplete.bash"),
+        "share/bash-completion/completions/zcomplete.bash",
+    );
+    b.getInstallStep().dependOn(&add_completion.step);
+
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.has_side_effects = true;
     if (b.args) |args| {
