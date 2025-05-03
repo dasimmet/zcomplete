@@ -44,12 +44,11 @@ const script_header =
     \\    
 ;
 
-const script_section_header = " : {";
+const script_section_header = " (NOLOAD) : {";
 
 const script_footer =
     \\
     \\    }
     \\}
-    \\INSERT AFTER .rodata;
     \\
 ;
