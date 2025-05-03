@@ -58,7 +58,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    addZComplete(b, no_backend_exe, zcomplete, b.path("examples/no_backend.zcomplete.zig"));
+    addZCompleteLp(b, no_backend_exe, zcomplete, b.path("examples/no_backend.zcomplete.zig"));
     const example_step = b.step("example", "build an example with embedded completion");
     example_step.dependOn(&b.addInstallArtifact(no_backend_exe, .{}).step);
 
@@ -71,7 +71,7 @@ pub fn build(b: *std.Build) void {
                 .optimize = optimize,
             });
             clap_exe.root_module.addImport("clap", backend_module.?);
-            addZComplete(b, clap_exe, zcomplete, b.path("examples/clap.zcomplete.zig"));
+            addZCompleteLp(b, clap_exe, zcomplete, b.path("examples/clap.zcomplete.zig"));
             example_step.dependOn(&b.addInstallArtifact(clap_exe, .{}).step);
             break :blk clap_exe;
         },
@@ -89,7 +89,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     }).module("zware"));
-    addZComplete(b, exe, zcomplete, b.path("src/zcomp.zcomplete.zig"));
+    addZCompleteLp(b, exe, zcomplete, b.path("src/zcomp.zcomplete.zig"));
     b.installArtifact(exe);
 
     const add_completion = b.addInstallFile(
@@ -105,12 +105,6 @@ pub fn build(b: *std.Build) void {
     } else {
         run_cmd.addArg("complete");
         run_cmd.addFileArg(example.getEmittedBin());
-        // const extract_wasm = b.addInstallFile(
-        //     run_cmd.addOutputFileArg("example.wasm"),
-        //     "bin/example.wasm",
-        // );
-        // // _ = extract_wasm;
-        // b.getInstallStep().dependOn(&extract_wasm.step);
         run_cmd.addArg("as");
         run_cmd.addArg("abc5");
         run_cmd.addArg("abc5");
@@ -119,14 +113,27 @@ pub fn build(b: *std.Build) void {
     run_step.dependOn(&run_cmd.step);
 }
 
-pub fn addZComplete(b: *std.Build, exe: *std.Build.Step.Compile, zcomplete: *std.Build.Module, specfile: LazyPath) void {
+pub fn addZCompleteLp(b: *std.Build, exe: *std.Build.Step.Compile, zcomplete: *std.Build.Module, specfile: LazyPath) void {
     const spec_mod = b.addModule("specfile", .{
         .root_source_file = specfile,
     });
     spec_mod.addImport("zcomplete", zcomplete);
+    return addZComplete(b, exe, zcomplete, spec_mod);
+}
 
-    const spec_exe = b.addExecutable(.{
-        .name = b.fmt("{s}-zcomplete", .{exe.name}),
+pub fn addZComplete(b: *std.Build, exe: *std.Build.Step.Compile, zcomplete: *std.Build.Module, spec_mod: *std.Build.Module) void {
+    const spec_exe = buildZComplete(
+        b,
+        b.fmt("{s}-zcomplete", .{exe.name}),
+        zcomplete,
+        spec_mod,
+    );
+    exe.setLinkerScript(zcomplete_ldgen(b, zcomplete, spec_exe.getEmittedBin()));
+}
+
+pub fn buildZComplete(b: *std.Build, name: []const u8, zcomplete: *std.Build.Module, spec_mod: *std.Build.Module) *std.Build.Step.Compile {
+    const exe = b.addExecutable(.{
+        .name = name,
         .root_source_file = b.path("src/module.zig"),
         .target = b.resolveTargetQuery(.{
             .cpu_arch = .wasm32,
@@ -138,26 +145,12 @@ pub fn addZComplete(b: *std.Build, exe: *std.Build.Step.Compile, zcomplete: *std
         }),
         .optimize = .ReleaseSmall,
     });
-    spec_exe.rdynamic = true;
-    spec_exe.entry = .disabled;
-    spec_exe.root_module.addImport("specfile", spec_mod);
-    spec_exe.root_module.addImport("zcomplete", zcomplete);
+    exe.rdynamic = true;
+    exe.entry = .disabled;
+    exe.root_module.addImport("specfile", spec_mod);
+    exe.root_module.addImport("zcomplete", zcomplete);
 
-    exe.setLinkerScript(zcomplete_ldgen(b, zcomplete, spec_exe.getEmittedBin()));
-
-    // if (b.option(bool, "wat", "wat") orelse false) {
-    //     if (b.lazyImport(@This(), "wabt")) |wabt| {
-    //         const my_wat: LazyPath = wabt.wasm2wat(
-    //             b,
-    //             spec_exe.getEmittedBin(),
-    //             "spec.wat",
-    //             &.{},
-    //         );
-    //         b.getInstallStep().dependOn(
-    //             &b.addInstallFile(my_wat, "bin/spec.wat").step,
-    //         );
-    //     }
-    // }
+    return exe;
 }
 
 pub fn zcomplete_ldgen(b: *std.Build, zcomplete: *std.Build.Module, src_exe: LazyPath) LazyPath {
