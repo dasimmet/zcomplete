@@ -24,18 +24,13 @@ pub fn main() !void {
     defer out_fd.close();
 
     try out_fd.writeAll(script_header);
-    var bytes_written: usize = 0;
-    for (input) |byte| {
-        if ((bytes_written % 4) == 0) {
+    for (input, 0..) |byte, i| {
+        if ((i % 4) == 0) {
             try out_fd.writeAll("\n        ");
         } else {
             try out_fd.writeAll(" ");
         }
         try out_fd.writer().print("BYTE(0x{X:0>2})", .{byte});
-        if ((bytes_written % 4) == 0) {
-            try out_fd.writeAll(" ");
-        }
-        bytes_written += 1;
     }
     try out_fd.writeAll(script_footer);
 }
