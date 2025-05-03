@@ -29,7 +29,7 @@ fn zcomplete_run(args: *zcomplete.Args) callconv(.C) *zcomplete.Response.Seriali
     autocomplete.allocator = allocator;
     autocomplete.args = args.parse(allocator) catch @panic("OOM");
     if (function_returns_error(@TypeOf(specfile.zcomp))) {
-        specfile.zcomp(autocomplete) catch @panic("ZCOMP ERROR");
+        specfile.zcomp(autocomplete) catch autocomplete.respond(.zcomperror);
     } else {
         specfile.zcomp(autocomplete);
     }

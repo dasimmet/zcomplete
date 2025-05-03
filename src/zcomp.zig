@@ -73,34 +73,15 @@ pub fn complete(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
     defer instance.deinit();
     const mem = try instance.getMemory(0);
 
-    var size: usize = @sizeOf(zcomplete.Args);
-    for (args[1..]) |arg| {
-        size += arg.len + 1;
-    }
+    const size = zcomplete.Args.size(args[1..]);
 
-    const wbuf = try alloc(mem, &instance, size);
+    const wbuf = try wasm_alloc(mem, &instance, size);
 
     std.debug.print("buf: {s}\n", .{
         wbuf.buf,
     });
 
-    const autocomp: *zcomplete.Args = @alignCast(@ptrCast(wbuf.buf.ptr));
-    autocomp.* = .{
-        .offset = @intCast(@sizeOf(zcomplete.Args)),
-        .len = @as(i32, @intCast(size)) - @sizeOf(zcomplete.Args),
-    };
-
-    var pos: usize = @sizeOf(zcomplete.Args);
-    for (args[1..]) |arg| {
-        @memcpy(wbuf.buf[pos .. pos + arg.len], arg);
-        pos += arg.len;
-        wbuf.buf[pos] = 0;
-        pos += 1;
-    }
-
-    for (args[1..]) |arg| {
-        size += arg.len + 1;
-    }
+    _ = zcomplete.Args.serialize(wbuf.buf, args[1..]);
 
     std.debug.print("buf: {s} size: {d} args: {d}\n", .{
         wbuf.buf[@sizeOf(zcomplete.Args)..], wbuf.buf.len, args[1..].len,
@@ -128,7 +109,7 @@ pub fn complete(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
     }
 }
 
-pub fn findElfbin(gpa: std.mem.Allocator, file: [:0]const u8, section_name: []const u8) !?[]u8 {
+pub fn findElfbin(gpa: std.mem.Allocator, file: []const u8, section_name: []const u8) !?[]u8 {
     var arena_alloc = std.heap.ArenaAllocator.init(gpa);
     defer arena_alloc.deinit();
     const arena = arena_alloc.allocator();
@@ -167,19 +148,19 @@ pub fn findElfbin(gpa: std.mem.Allocator, file: [:0]const u8, section_name: []co
     return null;
 }
 
-pub const Slice = struct {
-    ptr: usize,
-    buf: []u8,
+pub const WasmSlice = struct {
+    ptr: usize, // pointer in wasm memory space
+    buf: []u8, // host slice
 };
 
-pub fn alloc(mem: *zware.Memory, instance: *zware.Instance, count: usize) !Slice {
+pub fn wasm_alloc(mem: *zware.Memory, instance: *zware.Instance, count: usize) !WasmSlice {
     var in: [1]u64 = @splat(count);
     var out: [1]u64 = @splat(0);
     try instance.invoke("alloc", &in, &out, .{});
     return deref(mem, out[0], count);
 }
 
-pub fn run(mem: *zware.Memory, instance: *zware.Instance, inbuf: Slice) !*zcomplete.Response.Serialized {
+pub fn run(mem: *zware.Memory, instance: *zware.Instance, inbuf: WasmSlice) !*zcomplete.Response.Serialized {
     var in: [1]u64 = @splat(inbuf.ptr);
     var out: [1]u64 = @splat(0);
     try instance.invoke("run", &in, &out, .{});
@@ -187,7 +168,7 @@ pub fn run(mem: *zware.Memory, instance: *zware.Instance, inbuf: Slice) !*zcompl
     return @alignCast(@ptrCast(res.buf));
 }
 
-pub fn deref(mem: *zware.Memory, ptr: usize, len: usize) !Slice {
+pub fn deref(mem: *zware.Memory, ptr: usize, len: usize) !WasmSlice {
     return .{
         .ptr = ptr,
         .buf = mem.memory()[ptr .. ptr + len],

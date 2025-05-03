@@ -22,9 +22,37 @@ pub const AutoComplete = struct {
 
 pub const Run = fn (*AutoComplete) void;
 
-pub const Args = packed struct {
+pub const Args = extern struct {
+    version: u8 = 1,
     offset: i32,
     len: i32,
+
+    pub fn size(args: []const []const u8) usize {
+        var acc: usize = @sizeOf(@This());
+        for (args) |arg| {
+            acc += arg.len + 1;
+        }
+        return acc;
+    }
+
+    pub fn serialize(buf: []u8, args: []const []const u8) *@This() {
+        const mysize = Args.size(args);
+        std.debug.assert(buf.len == mysize);
+        const autocomp: *@This() = @alignCast(@ptrCast(buf.ptr));
+        autocomp.* = .{
+            .offset = @intCast(@sizeOf(@This())),
+            .len = @as(i32, @intCast(mysize)) - @sizeOf(@This()),
+        };
+
+        var pos: usize = @sizeOf(@This());
+        for (args) |arg| {
+            @memcpy(buf[pos .. pos + arg.len], arg);
+            pos += arg.len;
+            buf[pos] = 0;
+            pos += 1;
+        }
+        return autocomp;
+    }
 
     pub fn readSlice(self: *@This()) []u8 {
         var ptr: [*]u8 = @alignCast(@ptrCast(self));
@@ -48,6 +76,7 @@ pub const Args = packed struct {
 pub const Response = struct {
     pub const Options = union(enum(i32)) {
         unknown,
+        zcomperror,
         fill_options: []const []const u8,
         _,
 
@@ -89,7 +118,8 @@ pub const Response = struct {
         }
     };
 
-    pub const Serialized = packed struct {
+    pub const Serialized = extern struct {
+        version: u8 = 1,
         offset: i32,
         len: i32,
 
@@ -105,11 +135,12 @@ pub const Response = struct {
 
         pub fn parse(self: *@This(), gpa: std.mem.Allocator) !Options {
             const slice = self.readSlice();
-            std.log.err("xxxx: {x}", .{slice});
             const tag: i32 = @as(*i32, @alignCast(@ptrCast(slice[0..4]))).*;
             const tag_enum: std.meta.Tag(Options) = @enumFromInt(tag);
+            std.log.err("xxxx: {x} {}", .{ slice, tag_enum });
             switch (tag_enum) {
                 .unknown => return .unknown,
+                .zcomperror => return .zcomperror,
                 .fill_options => {
                     var array = std.ArrayListUnmanaged([]const u8).empty;
                     var last_zero: usize = 0;
@@ -121,7 +152,7 @@ pub const Response = struct {
                     }
                     return .{ .fill_options = try array.toOwnedSlice(gpa) };
                 },
-                else => return .unknown,
+                else => return error.UnknownField,
             }
         }
     };
