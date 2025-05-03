@@ -69,7 +69,16 @@ pub fn bash(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
                 const cur_arg = argv[cur - 1];
                 for (opts) |opt| {
                     if (std.mem.startsWith(u8, opt, cur_arg)) {
-                        try stdout.print("{s}\n", .{opt});
+                        var quote = false;
+                        for (opt) |c| {
+                            if (std.ascii.isWhitespace(c)) quote = true;
+                            break;
+                        }
+                        if (quote) {
+                            try stdout.print("\"{s}\"\n", .{opt});
+                        } else {
+                            try stdout.print("{s}\n", .{opt});
+                        }
                     }
                 }
             }
