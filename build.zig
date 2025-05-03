@@ -59,7 +59,8 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
     addZComplete(b, no_backend_exe, zcomplete, b.path("examples/no_backend.zcomplete.zig"));
-    b.installArtifact(no_backend_exe);
+    const example_step = b.step("example", "build an example with embedded completion");
+    example_step.dependOn(&b.addInstallArtifact(no_backend_exe, .{}).step);
 
     const example = switch (backend) {
         .clap => blk: {
@@ -71,7 +72,7 @@ pub fn build(b: *std.Build) void {
             });
             clap_exe.root_module.addImport("clap", backend_module.?);
             addZComplete(b, clap_exe, zcomplete, b.path("examples/clap.zcomplete.zig"));
-            b.installArtifact(clap_exe);
+            example_step.dependOn(&b.addInstallArtifact(clap_exe, .{}).step);
             break :blk clap_exe;
         },
         .no_backend => no_backend_exe,
