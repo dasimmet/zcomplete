@@ -157,15 +157,17 @@ pub const Response = struct {
                 .zcomperror => return .zcomperror,
                 .fill_options => {
                     var array = std.ArrayListUnmanaged([]const u8).empty;
-                    var last_zero: usize = 0;
+                    var slice_start: usize = 0;
                     for (slice[4..], 0..) |c, i| {
                         if (c == 0) {
-                            const duped = try gpa.dupe(u8, slice[4 + last_zero .. 4 + i]);
+                            const duped = try gpa.dupe(u8, slice[4 + slice_start .. 4 + i]);
                             try array.append(gpa, duped);
-                            last_zero = i;
+                            slice_start = i + 1;
                         }
                     }
-                    return .{ .fill_options = try array.toOwnedSlice(gpa) };
+                    return .{
+                        .fill_options = try array.toOwnedSlice(gpa),
+                    };
                 },
                 else => return error.UnknownField,
             }

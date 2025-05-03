@@ -57,15 +57,21 @@ pub fn bash(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
     const cur = try std.fmt.parseInt(usize, args[0], 10);
     const cmd = args[1];
 
-    const parsed = try getComletion(gpa, cmd, cur, args[2..]);
+    const argv = args[2..];
+    const parsed = try getComletion(gpa, cmd, cur, argv);
     defer parsed.deinit(gpa);
 
     const stdout = std.io.getStdOut().writer();
     switch (parsed) {
         .unknown => {},
         .fill_options => |opts| {
-            for (opts) |opt| {
-                try stdout.print("{s}\n", .{opt});
+            if (cur > 0) {
+                const cur_arg = argv[cur - 1];
+                for (opts) |opt| {
+                    if (std.mem.startsWith(u8, opt, cur_arg)) {
+                        try stdout.print("{s}\n", .{opt});
+                    }
+                }
             }
         },
         else => {},
