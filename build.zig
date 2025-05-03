@@ -33,6 +33,7 @@ pub fn build(b: *std.Build) void {
                 if (b.lazyDependency("clap", .{})) |clap| {
                     backend_module = clap.module("clap");
                 } else {
+                    // we assume to have a backend module after this...but zig might need to download it.
                     backend_module = b.addModule("lazy fallback module", .{
                         .root_source_file = b.path("lazy fallback module"),
                     });
@@ -71,7 +72,14 @@ pub fn build(b: *std.Build) void {
                 .optimize = optimize,
             });
             clap_exe.root_module.addImport("clap", backend_module.?);
-            addZCompleteLp(b, clap_exe, zcomplete, b.path("examples/clap.zcomplete.zig"));
+            {
+                const clap_exe_complete = b.addModule("clap-example-zcomplete", .{
+                    .root_source_file = b.path("examples/clap.zcomplete.zig"),
+                });
+                clap_exe_complete.addImport("clap", backend_module.?);
+                clap_exe_complete.addImport("zcomplete", zcomplete);
+                addZComplete(b, clap_exe, zcomplete, clap_exe_complete);
+            }
             example_step.dependOn(&b.addInstallArtifact(clap_exe, .{}).step);
             break :blk clap_exe;
         },

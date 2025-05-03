@@ -1,5 +1,6 @@
 const zcomplete = @import("zcomplete");
 const root = @import("clap.zig");
+const clap = @import("clap");
 const std = @import("std");
 
 const main_parsers = .{
