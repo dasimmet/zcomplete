@@ -28,8 +28,13 @@ pub fn main() !void {
     for (input) |byte| {
         if ((bytes_written % 4) == 0) {
             try out_fd.writeAll("\n        ");
+        } else {
+            try out_fd.writeAll(" ");
         }
-        try out_fd.writer().print("BYTE(0x{X:0>2}) ", .{byte});
+        try out_fd.writer().print("BYTE(0x{X:0>2})", .{byte});
+        if ((bytes_written % 4) == 0) {
+            try out_fd.writeAll(" ");
+        }
         bytes_written += 1;
     }
     try out_fd.writeAll(script_footer);
@@ -38,7 +43,7 @@ pub fn main() !void {
 const script_header =
     \\SECTIONS
     \\{
-    \\    .note.zcomplete : {
+    \\    .zcomplete : {
 ;
 
 const script_footer =

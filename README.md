@@ -1,2 +1,5 @@
-# clapcomplete
-a python argcomplete inspired completion engine for zig-clap
+# zcomplete
+
+a python argcomplete inspired completion engine for zig argument parsers
+
+

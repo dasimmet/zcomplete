@@ -96,12 +96,12 @@ pub fn build(b: *std.Build) void {
         run_cmd.addArgs(args);
     } else {
         run_cmd.addFileArg(example.getEmittedBin());
-        b.getInstallStep().dependOn(
-            &b.addInstallFile(
-                run_cmd.addOutputFileArg("example.wasm"),
-                "bin/example.wasm",
-            ).step,
+        const extract_wasm = b.addInstallFile(
+            run_cmd.addOutputFileArg("example.wasm"),
+            "bin/example.wasm",
         );
+        // _ = extract_wasm;
+        b.getInstallStep().dependOn(&extract_wasm.step);
         run_cmd.addArg("as");
         run_cmd.addArg("abc5");
         run_cmd.addArg("abc5");
