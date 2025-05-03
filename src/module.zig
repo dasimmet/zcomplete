@@ -27,7 +27,10 @@ fn zcomplete_alloc(len: isize) callconv(.C) [*]u8 {
 fn zcomplete_run(args: *zcomplete.Args) callconv(.C) *zcomplete.Response.Serialized {
     var autocomplete = allocator.create(zcomplete.AutoComplete) catch @panic("OOM");
     autocomplete.allocator = allocator;
-    autocomplete.args = args.parse(allocator) catch @panic("OOM");
+    autocomplete.cur = args.cur;
+    const parsed_args = args.parse(allocator) catch @panic("OOM");
+    autocomplete.cmd = parsed_args.cmd;
+    autocomplete.args = parsed_args.args;
     if (function_returns_error(@TypeOf(specfile.zcomp))) {
         specfile.zcomp(autocomplete) catch autocomplete.respond(.zcomperror);
     } else {

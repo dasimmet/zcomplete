@@ -25,6 +25,7 @@ pub fn main() !void {
 
     inline for (&.{
         .{ "extract", extract },
+        .{ "bash", bash },
         .{ "complete", complete },
     }) |cmd| {
         if (std.mem.eql(u8, cmd[0], args[1])) {
@@ -51,12 +52,50 @@ pub fn extract(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
     });
 }
 
+pub fn bash(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
+    if (args.len < 2) return error.NotEnoughArguments;
+    const cur = try std.fmt.parseInt(usize, args[0], 10);
+    const cmd = args[1];
+
+    const parsed = try getComletion(gpa, cmd, cur, args[2..]);
+    defer parsed.deinit(gpa);
+
+    const stdout = std.io.getStdOut().writer();
+    switch (parsed) {
+        .unknown => {},
+        .fill_options => |opts| {
+            for (opts) |opt| {
+                try stdout.print("{s}\n", .{opt});
+            }
+        },
+        else => {},
+    }
+}
+
 pub fn complete(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
     if (args.len < 1) return error.NotEnoughArguments;
+    const cmd = args[0];
 
+    const parsed = try getComletion(gpa, cmd, args.len, args);
+    defer parsed.deinit(gpa);
+
+    std.debug.print("out: {any}\n", .{
+        parsed,
+    });
+
+    switch (parsed) {
+        .unknown => {},
+        .fill_options => |opts| {
+            std.log.err("opts: {s}", .{opts});
+        },
+        else => {},
+    }
+}
+
+pub fn getComletion(gpa: std.mem.Allocator, cmd: []const u8, cur: usize, args: []const [:0]const u8) !zcomplete.Response.Options {
     const bytes = (try findElfbin(
         gpa,
-        args[0],
+        cmd,
         zcomplete.linker_section_name,
     )) orelse return error.ElfSectionNotFound;
     defer gpa.free(bytes);
@@ -73,40 +112,26 @@ pub fn complete(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
     defer instance.deinit();
     const mem = try instance.getMemory(0);
 
-    const size = zcomplete.Args.size(args[1..]);
+    const size = zcomplete.Args.size(cmd, args);
 
     const wbuf = try wasm_alloc(mem, &instance, size);
 
-    std.debug.print("buf: {s}\n", .{
-        wbuf.buf,
-    });
+    // std.debug.print("buf: {s}\n", .{
+    //     wbuf.buf,
+    // });
 
-    _ = zcomplete.Args.serialize(wbuf.buf, args[1..]);
+    _ = zcomplete.Args.serialize(wbuf.buf, cmd, cur, args);
 
-    std.debug.print("buf: {s} size: {d} args: {d}\n", .{
-        wbuf.buf[@sizeOf(zcomplete.Args)..], wbuf.buf.len, args[1..].len,
-    });
+    // std.debug.print("buf: {s} size: {d} args: {d}\n", .{
+    //     wbuf.buf[@sizeOf(zcomplete.Args)..], wbuf.buf.len, args[1..].len,
+    // });
 
     const serialized = try run(mem, &instance, wbuf);
 
-    std.debug.print("out: {any}\n", .{
-        serialized,
-    });
-
-    const parsed = try serialized.parse(gpa);
-    defer parsed.deinit(gpa);
-
-    std.debug.print("out: {any}\n", .{
-        parsed,
-    });
-
-    switch (parsed) {
-        .unknown => {},
-        .fill_options => |opts| {
-            std.log.err("opts: {s}", .{opts});
-        },
-        else => {},
-    }
+    // std.debug.print("out: {any}\n", .{
+    //     serialized,
+    // });
+    return serialized.parse(gpa);
 }
 
 pub fn findElfbin(gpa: std.mem.Allocator, file: []const u8, section_name: []const u8) !?[]u8 {
@@ -135,14 +160,14 @@ pub fn findElfbin(gpa: std.mem.Allocator, file: []const u8, section_name: []cons
         const sh_name = object.getShString(shdr.sh_name);
         if (shdr.sh_type == std.elf.SHT_NOTE and std.mem.eql(u8, sh_name, section_name)) {
             const ofs = shdr.sh_offset;
-            std.log.info("here: {s} 0x{x} 0x{x} 0x{x} 0x{x} 0x{x}", .{
-                sh_name,
-                ofs,
-                shdr.sh_addr,
-                shdr.sh_offset,
-                shdr.sh_size,
-                shdr.sh_entsize,
-            });
+            // std.log.info("here: {s} 0x{x} 0x{x} 0x{x} 0x{x} 0x{x}", .{
+            //     sh_name,
+            //     ofs,
+            //     shdr.sh_addr,
+            //     shdr.sh_offset,
+            //     shdr.sh_size,
+            //     shdr.sh_entsize,
+            // });
             return try gpa.dupe(u8, file_bytes[ofs .. ofs + shdr.sh_size]);
         }
     }

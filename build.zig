@@ -88,6 +88,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     }).module("zware"));
+    addZComplete(b, exe, zcomplete, b.path("src/zcomp.zcomplete.zig"));
     b.installArtifact(exe);
 
     const run_cmd = b.addRunArtifact(exe);

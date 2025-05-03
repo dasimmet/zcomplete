@@ -7,8 +7,9 @@ const std = @import("std");
 pub const linker_section_name = "zcomplete.wasm";
 
 pub const AutoComplete = struct {
-    id: i32,
     allocator: std.mem.Allocator,
+    cur: i32,
+    cmd: [:0]const u8,
     args: []const [:0]const u8,
     response: Response.Options = .unknown,
 
@@ -20,31 +21,35 @@ pub const AutoComplete = struct {
     }
 };
 
-pub const Run = fn (*AutoComplete) void;
-
 pub const Args = extern struct {
     version: u8 = 1,
     offset: i32,
     len: i32,
+    cur: i32,
 
-    pub fn size(args: []const []const u8) usize {
-        var acc: usize = @sizeOf(@This());
+    pub fn size(cmd: []const u8, args: []const []const u8) usize {
+        var acc: usize = @sizeOf(@This()) + cmd.len + 1;
         for (args) |arg| {
             acc += arg.len + 1;
         }
         return acc;
     }
 
-    pub fn serialize(buf: []u8, args: []const []const u8) *@This() {
-        const mysize = Args.size(args);
+    pub fn serialize(buf: []u8, cmd: []const u8, cur: usize, args: []const []const u8) *@This() {
+        const mysize = Args.size(cmd, args);
         std.debug.assert(buf.len == mysize);
         const autocomp: *@This() = @alignCast(@ptrCast(buf.ptr));
         autocomp.* = .{
             .offset = @intCast(@sizeOf(@This())),
             .len = @as(i32, @intCast(mysize)) - @sizeOf(@This()),
+            .cur = @intCast(cur),
         };
 
         var pos: usize = @sizeOf(@This());
+        @memcpy(buf[pos .. pos + cmd.len], cmd);
+        buf[pos + cmd.len] = 0;
+        pos += cmd.len + 1;
+
         for (args) |arg| {
             @memcpy(buf[pos .. pos + arg.len], arg);
             pos += arg.len;
@@ -59,17 +64,25 @@ pub const Args = extern struct {
         return ptr[@intCast(self.offset)..@intCast(self.offset + self.len)];
     }
 
-    pub fn parse(self: *@This(), gpa: std.mem.Allocator) ![]const [:0]const u8 {
+    pub fn parse(self: *@This(), gpa: std.mem.Allocator) !struct {
+        cmd: [:0]const u8,
+        args: []const [:0]const u8,
+    } {
         const slice = self.readSlice();
         var array = std.ArrayListUnmanaged([:0]const u8).empty;
+        var cmd: [:0]const u8 = undefined;
         var last_zero: usize = 0;
         for (slice, 0..) |c, i| {
             if (c == 0) {
+                if (last_zero == 0) cmd = @ptrCast(slice[last_zero..i]);
                 try array.append(gpa, @ptrCast(slice[last_zero..i]));
                 last_zero = i + 1;
             }
         }
-        return array.toOwnedSlice(gpa);
+        return .{
+            .cmd = cmd,
+            .args = try array.toOwnedSlice(gpa),
+        };
     }
 };
 
@@ -137,7 +150,7 @@ pub const Response = struct {
             const slice = self.readSlice();
             const tag: i32 = @as(*i32, @alignCast(@ptrCast(slice[0..4]))).*;
             const tag_enum: std.meta.Tag(Options) = @enumFromInt(tag);
-            std.log.err("xxxx: {x} {}", .{ slice, tag_enum });
+            // std.log.err("xxxx: {x} {}", .{ slice, tag_enum });
             switch (tag_enum) {
                 .unknown => return .unknown,
                 .zcomperror => return .zcomperror,
