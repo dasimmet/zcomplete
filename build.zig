@@ -14,7 +14,7 @@ pub fn build(b: *std.Build) void {
         Backend,
         "backend",
         "the argument backend type to use",
-    ) orelse .clap;
+    ) orelse .no_backend;
 
     var backend_module = if (b.option(
         std.Build.LazyPath,

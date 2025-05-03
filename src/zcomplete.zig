@@ -1,8 +1,4 @@
 pub const options = @import("options");
-pub const backend = switch (options.backend) {
-    .clap => @import("backend"),
-    .no_backend => struct {},
-};
 const std = @import("std");
 pub const linker_section_name = "zcomplete.wasm";
 
