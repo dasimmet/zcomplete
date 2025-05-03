@@ -7,7 +7,6 @@ const Module = zware.Module;
 const Instance = zware.Instance;
 
 const Object = @import("elf/Object.zig");
-const zelf = @import("elf/zelf.zig");
 
 pub const std_options: std.Options = .{
     .log_level = .debug,
