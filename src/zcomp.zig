@@ -60,12 +60,13 @@ pub fn bash(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
     const parsed = try getComletion(gpa, cmd, cur, argv);
     defer parsed.deinit(gpa);
 
+    const stderr = std.io.getStdErr().writer();
     const stdout = std.io.getStdOut().writer();
     switch (parsed) {
         .unknown => {},
         .fill_options => |opts| {
             if (cur > 0) {
-                const cur_arg = argv[cur - 1];
+                const cur_arg = if (argv.len < cur) "" else argv[cur - 1];
                 outer: for (opts) |opt| {
                     if (std.mem.startsWith(u8, opt, cur_arg)) {
                         for (opt) |c| {
@@ -79,7 +80,12 @@ pub fn bash(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
                 }
             }
         },
-        else => {},
+        .int_range => |_| {},
+        .zcomperror => |msg| {
+            try stderr.print("\nzcomperr:\n{s}\n", .{msg});
+            std.process.exit(1);
+        },
+        else => @panic("response not implemented!"),
     }
 }
 

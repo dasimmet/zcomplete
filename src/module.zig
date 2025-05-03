@@ -32,7 +32,9 @@ fn zcomplete_run(args: *zcomplete.Args) callconv(.C) *zcomplete.Response.Seriali
     autocomplete.cmd = parsed_args.cmd;
     autocomplete.args = parsed_args.args;
     if (function_returns_error(@TypeOf(specfile.zcomp))) {
-        specfile.zcomp(autocomplete) catch autocomplete.respond(.zcomperror);
+        specfile.zcomp(autocomplete) catch |err| {
+            autocomplete.panic("zcomp run error: {}", .{err});
+        };
     } else {
         specfile.zcomp(autocomplete);
     }

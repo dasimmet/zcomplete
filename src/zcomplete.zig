@@ -12,6 +12,15 @@ pub const AutoComplete = struct {
     pub fn respond(self: *@This(), opt: Response.Options) void {
         self.response = opt;
     }
+    pub fn panic(self: *@This(), comptime fmt: []const u8, args: anytype) void {
+        self.response = .{
+            .zcomperror = std.fmt.allocPrint(
+                self.allocator,
+                fmt,
+                args,
+            ) catch unreachable,
+        };
+    }
     pub fn serialize(self: *@This()) *Response.Serialized {
         return self.response.serialize(self.allocator);
     }
@@ -85,22 +94,32 @@ pub const Args = extern struct {
 pub const Response = struct {
     pub const Options = union(enum(i32)) {
         unknown,
-        zcomperror,
+        zcomperror: []const u8,
         fill_options: []const []const u8,
+        int_range: struct { min: ?i32, max: ?i32 },
         _,
 
         pub fn deinit(self: @This(), gpa: std.mem.Allocator) void {
             switch (self) {
-                else => {},
+                .unknown, .int_range => {},
+                .zcomperror => |msg| gpa.free(msg),
                 .fill_options => |fo| {
                     for (fo) |opt| gpa.free(opt);
                     gpa.free(fo);
                 },
+                else => @panic("free unknown message"),
             }
         }
 
         pub fn fillOptions(fo: []const []const u8) @This() {
             return .{ .fill_options = fo };
+        }
+
+        pub fn intRangeOptions(min: ?i32, max: ?i32) @This() {
+            return .{ .int_range = .{
+                .min = min,
+                .max = max,
+            } };
         }
 
         pub fn serialize(self: *@This(), gpa: std.mem.Allocator) *Serialized {
@@ -112,16 +131,35 @@ pub const Response = struct {
             acc.appendNTimesAssumeCapacity(0, header_size);
             const res: *Serialized = @alignCast(@ptrCast(acc.items.ptr));
             res.offset = header_size;
-            acc.appendSlice(gpa, &@as([4]u8, @bitCast(@intFromEnum(self.*)))) catch unreachable;
+            res.tag = @intFromEnum(self.*);
             switch (self.*) {
                 .unknown => {},
+                .zcomperror => |msg| {
+                    acc.appendSlice(gpa, msg) catch @panic("OOM");
+                },
                 .fill_options => |opts| {
                     for (opts) |opt| {
-                        acc.appendSlice(gpa, opt) catch unreachable;
-                        acc.append(gpa, 0) catch unreachable;
+                        acc.appendSlice(gpa, opt) catch @panic("OOM");
+                        acc.append(gpa, 0) catch @panic("OOM");
                     }
                 },
-                else => {},
+                .int_range => |ir| {
+                    acc.appendSlice(
+                        gpa,
+                        &@as([4]u8, @bitCast(ir.min orelse std.math.minInt(i32))),
+                    ) catch unreachable;
+                    acc.appendSlice(
+                        gpa,
+                        &@as([4]u8, @bitCast(ir.max orelse std.math.maxInt(i32))),
+                    ) catch unreachable;
+                },
+                else => {
+                    acc.writer(gpa).print(
+                        "serialize msg not implemented: {any}",
+                        .{self.*},
+                    ) catch unreachable;
+                    res.tag = @intFromEnum(@This().zcomperror);
+                },
             }
             res.len = @intCast(acc.items.len - header_size);
             return res;
@@ -132,6 +170,7 @@ pub const Response = struct {
         version: u8 = 1,
         offset: i32,
         len: i32,
+        tag: @typeInfo(std.meta.Tag(Options)).@"enum".tag_type,
 
         pub fn deinit(self: *@This(), gpa: std.mem.Allocator) void {
             gpa.free(self.readSlice());
@@ -145,18 +184,17 @@ pub const Response = struct {
 
         pub fn parse(self: *@This(), gpa: std.mem.Allocator) !Options {
             const slice = self.readSlice();
-            const tag: i32 = @as(*i32, @alignCast(@ptrCast(slice[0..4]))).*;
-            const tag_enum: std.meta.Tag(Options) = @enumFromInt(tag);
+            const tag_enum: std.meta.Tag(Options) = @enumFromInt(self.tag);
             // std.log.err("xxxx: {x} {}", .{ slice, tag_enum });
             switch (tag_enum) {
                 .unknown => return .unknown,
-                .zcomperror => return .zcomperror,
+                .zcomperror => return .{ .zcomperror = try gpa.dupe(u8, slice) },
                 .fill_options => {
                     var array = std.ArrayListUnmanaged([]const u8).empty;
                     var slice_start: usize = 0;
-                    for (slice[4..], 0..) |c, i| {
+                    for (slice, 0..) |c, i| {
                         if (c == 0) {
-                            const duped = try gpa.dupe(u8, slice[4 + slice_start .. 4 + i]);
+                            const duped = try gpa.dupe(u8, slice[slice_start..i]);
                             try array.append(gpa, duped);
                             slice_start = i + 1;
                         }
@@ -165,18 +203,18 @@ pub const Response = struct {
                         .fill_options = try array.toOwnedSlice(gpa),
                     };
                 },
+                .int_range => {
+                    const min: i32 = @bitCast(slice[0..4].*);
+                    const max: i32 = @bitCast(slice[4..8].*);
+                    return .{
+                        .int_range = .{
+                            .min = if (min == std.math.minInt(i32)) null else min,
+                            .max = if (max == std.math.maxInt(i32)) null else max,
+                        },
+                    };
+                },
                 else => return error.UnknownField,
             }
         }
     };
 };
-
-pub fn pack_args(args: []const []const u8, out: []u8) void {
-    var pos: usize = 0;
-    for (args) |arg| {
-        @memcpy(out[pos .. pos + arg.len], arg);
-        pos += arg.len;
-        out[pos] = 0;
-        pos += 1;
-    }
-}

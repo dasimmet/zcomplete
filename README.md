@@ -31,8 +31,8 @@ useful completion for itself.
 
 - Embedded Windows Resource files?
 - MachO?
-- Support separate .wasm files.
-  This needs some kind of "friendship check" between a binary and the `.wasm`.
+- Support separate .wasm files?
+  This needs a reasonably fast way of associating a binary and the `.wasm`.
 
 ### make a non-generic target it work with zig master
 
