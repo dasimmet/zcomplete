@@ -12,9 +12,28 @@ Works like this:
 
 ## TODOs
 
-### make non-generic target it work with zig master
+This project is in a Proof-of-concept stage. It barely generates 
+useful completion for itself.
 
-at the moment we set an explicit generic target:
+### Support other shells than `bash`
+
+
+### Povide completion for files in the filesystem
+
+- Offer a way for `.wasm` to query filesystem files?
+- report back valid extensions or magic numbers from `.wasm` to `zcomp`?
+
+### Alternatives if embedding in ELF is not an option.
+
+- Embedded Windows Resource files?
+- MachO?
+- Support separate .wasm files.
+  This needs some kind of "friendship check" between a binary and the `.wasm`.
+
+### make a non-generic target it work with zig master
+
+at the moment we set an explicit generic target (which means only `mvp`
+wasm features are on):
 
 ```zig
 .target = b.resolveTargetQuery(.{
@@ -27,7 +46,9 @@ at the moment we set an explicit generic target:
 }),
 ```
 
-zware works always with 0.14.0, on master:
+zware works always with 0.14.0, on master with only `wasm32-freestanding`
+it fails. Maybe only `mvp` wasm32 should be supported, but this is the
+error:
 
 ```
 error: ValidatorCallIndirectNoTable
