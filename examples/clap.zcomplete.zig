@@ -1,5 +1,4 @@
 const zcomplete = @import("zcomplete");
-const clap = zcomplete.backend;
 const root = @import("clap.zig");
 const std = @import("std");
 
