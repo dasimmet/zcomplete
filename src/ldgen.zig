@@ -44,11 +44,12 @@ const script_header =
     \\    
 ;
 
-const script_section_header = " (NOLOAD) : {";
+const script_section_header = " (TYPE=SHT_NOTE) : {";
 
 const script_footer =
     \\
     \\    }
     \\}
+    \\INSERT AFTER .rodata;
     \\
 ;

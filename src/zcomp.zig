@@ -135,12 +135,13 @@ pub fn findElfbin(gpa: std.mem.Allocator, file: []const u8, section_name: []cons
         const sh_name = object.getShString(shdr.sh_name);
         if (std.mem.eql(u8, sh_name, section_name)) {
             const ofs = shdr.sh_offset;
-            std.log.info("here: {s} 0x{x} 0x{x} 0x{x} 0x{x}", .{
+            std.log.info("here: {s} 0x{x} 0x{x} 0x{x} 0x{x} 0x{x}", .{
                 sh_name,
                 ofs,
                 shdr.sh_addr,
                 shdr.sh_offset,
                 shdr.sh_size,
+                shdr.sh_entsize,
             });
             return try gpa.dupe(u8, file_bytes[ofs .. ofs + shdr.sh_size]);
         }
