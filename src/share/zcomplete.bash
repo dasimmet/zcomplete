@@ -1,7 +1,7 @@
 _zcomplete() {
   local CMD="$1"
   local CUR="$2"
-  local IFS='\n'
+  local IFS=$'\n'
   local ZCOMP=""
   if [[ "$(basename "$CMD")" == "zcomp" ]];then
     ZCOMP="$CMD"
