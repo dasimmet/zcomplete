@@ -57,7 +57,7 @@ pub fn bash(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
     const cmd = args[1];
 
     const argv = args[2..];
-    const parsed = try getComletion(gpa, cmd, cur, argv);
+    const parsed = try getCompletion(gpa, cmd, cur, argv);
     defer parsed.deinit(gpa);
 
     const stderr = std.io.getStdErr().writer();
@@ -92,8 +92,11 @@ pub fn bash(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
 pub fn complete(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
     if (args.len < 1) return error.NotEnoughArguments;
     const cmd = args[0];
+    const cur = @max(1, args.len - 1);
 
-    const parsed = try getComletion(gpa, cmd, args.len, args);
+    std.debug.print("cmd: {s} cur: {d} args: {s}\n", .{ cmd, cur, args[1..] });
+
+    const parsed = try getCompletion(gpa, cmd, cur, args[1..]);
     defer parsed.deinit(gpa);
 
     std.debug.print("out: {any}\n", .{
@@ -109,7 +112,7 @@ pub fn complete(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
     }
 }
 
-pub fn getComletion(gpa: std.mem.Allocator, cmd: []const u8, cur: usize, args: []const [:0]const u8) !zcomplete.Response.Options {
+pub fn getCompletion(gpa: std.mem.Allocator, cmd: []const u8, cur: usize, args: []const [:0]const u8) !zcomplete.Response.Options {
     const bytes = (try findElfbin(
         gpa,
         cmd,

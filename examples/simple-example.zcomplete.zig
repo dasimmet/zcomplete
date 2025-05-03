@@ -2,10 +2,9 @@ const zcomplete = @import("zcomplete");
 const std = @import("std");
 
 pub fn zcomp(a: *zcomplete.AutoComplete) !void {
-    a.respond(switch (a.args.len) {
+    a.respond(switch (a.cur) {
         0 => .unknown,
-        1 => .unknown,
-        2 => .fillOptions(&.{
+        1 => .fillOptions(&.{
             "--help",
             "--version",
         }),

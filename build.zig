@@ -53,15 +53,15 @@ pub fn build(b: *std.Build) void {
     zcomplete_options.addOption(bool, "wasm_mode", false);
     zcomplete.addOptions("options", zcomplete_options);
 
-    const no_backend_exe = b.addExecutable(.{
-        .name = "no_backend-example",
-        .root_source_file = b.path("examples/no_backend.zig"),
+    const simple_exe = b.addExecutable(.{
+        .name = "simple-example",
+        .root_source_file = b.path("examples/simple-example.zig"),
         .target = target,
         .optimize = optimize,
     });
-    addZCompleteLp(b, no_backend_exe, zcomplete, b.path("examples/no_backend.zcomplete.zig"));
+    addZCompleteLp(b, simple_exe, zcomplete, b.path("examples/simple-example.zcomplete.zig"));
     const example_step = b.step("example", "build an example with embedded completion");
-    example_step.dependOn(&b.addInstallArtifact(no_backend_exe, .{}).step);
+    example_step.dependOn(&b.addInstallArtifact(simple_exe, .{}).step);
 
     const example = switch (backend) {
         .clap => blk: {
@@ -83,7 +83,7 @@ pub fn build(b: *std.Build) void {
             example_step.dependOn(&b.addInstallArtifact(clap_exe, .{}).step);
             break :blk clap_exe;
         },
-        .no_backend => no_backend_exe,
+        .no_backend => simple_exe,
     };
 
     const exe = b.addExecutable(.{
@@ -113,9 +113,7 @@ pub fn build(b: *std.Build) void {
     } else {
         run_cmd.addArg("complete");
         run_cmd.addFileArg(example.getEmittedBin());
-        run_cmd.addArg("as");
-        run_cmd.addArg("abc5");
-        run_cmd.addArg("abc5");
+        run_cmd.addArg("--");
     }
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
