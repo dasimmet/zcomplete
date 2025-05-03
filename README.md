@@ -17,6 +17,9 @@ useful completion for itself.
 
 ### Support other shells than `bash`
 
+- [`zsh`](https://github.com/zsh-users/zsh-completions)
+- [`fish`](https://fishshell.com/docs/current/completions.html)
+- [`powershell`](https://learn.microsoft.com/en-us/powershell/scripting/learn/shell/tab-completion?view=powershell-7.5)
 
 ### Povide completion for files in the filesystem
 
