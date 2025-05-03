@@ -1,15 +1,41 @@
 # zcomplete
 
-a python argcomplete inspired completion engine for zig argument parsers.
-Works like this:
+a python argcomplete inspired shell completion engine for zig argument parsers.
 
-- Generate a separate .wasm version of your program's argument parser
-- embed `wasm` in a special `zcomplete` ELF section using linker script
-- when pressing `<TAB>` in bash,
-  extract and instanciate `wasm` section with `zware` -> pass in the current command
-  line and the current arg to be completed
+Traditionally, [bash-completion](https://github.com/scop/bash-completion/)
+works by command line programs shipping their own `bash` code to handle
+suggestions when users type the command and hit `<TAB>` on the keyboard.
+
+Since these scripts are:
+
+- `bash` specific
+- maintained separately from the binary and might not match the behaviour
+  of it.
+
+Zcomplete instead works like this:
+
+- Generate a separate `.wasm` version of your program's argument parser
+- embed the `.wasm` in a special `zcomplete.wasm` ELF section using a linker script
+- provides a generic tool called `zcomp` that needs to be installed in `PATH`
+  once, along with a simple `zcomplete.bash` completion script.
+- when pressing `<TAB>` in bash, `zcomp` will try to 
+  extract and instanciate the `zcomplete.wasm` section with a [Webassembly Runtime](https://github.com/malcolmstill/zware),
+  then pass in the current command line and the current arg to be completed.
 - evaluate the response and generate bash completion
 - SUCCESS!
+
+## Zcomplete vs argcomplete
+
+Python's [argcomplete](https://pypi.org/project/argcomplete/) works
+by running the actual python script until the `argparse` instance is created,
+and uses the contained info to generate the completion suggestions.
+It's main shortcomings are:
+
+- needs to run the actual python script. We cannot do that on a native binary
+  safely. It uses a `PYTHON_ARGCOMPLETE_OK` magic string to determine a
+  script's eligibility for completion.
+- May take longer than bearable by users on each `<TAB>` press,
+  since starting python and reading all source code is slow.
 
 ## TODOs
 
@@ -22,7 +48,7 @@ useful completion for itself.
 - [`fish`](https://fishshell.com/docs/current/completions.html)
 - [`powershell`](https://learn.microsoft.com/en-us/powershell/scripting/learn/shell/tab-completion?view=powershell-7.5)
 
-### Povide completion for files in the filesystem
+### Povide completion for file paths in the filesystem
 
 - Offer a way for `.wasm` to query filesystem files?
 - report back valid extensions or magic numbers from `.wasm` to `zcomp`?
@@ -31,10 +57,12 @@ useful completion for itself.
 
 - Embedded Windows Resource files?
 - MachO?
-- Support separate .wasm files?
+- Support `.wasm` separate from the binary?
   This needs a reasonably fast way of associating a binary and the `.wasm`.
+  Optionally, a single `.wasm` core could serve completions for multiple
+  binaries, like and `zcomplete` could use the `.wasm` files like a plugin system.
 
-### make a non-generic target it work with zig master
+### make a non-mvp target it work with zig master
 
 at the moment we set an explicit generic target (which means only `mvp`
 wasm features are on):
