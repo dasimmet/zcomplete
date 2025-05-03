@@ -162,6 +162,9 @@ pub fn zcomplete_ldgen(b: *std.Build, zcomplete: *std.Build.Module, src_exe: Laz
     });
     ldgen.root_module.addImport("zcomplete", zcomplete);
     const run = b.addRunArtifact(ldgen);
+    if (b.verbose) {
+        run.setEnvironmentVariable("LDGEN_VERBOSE", "1");
+    }
     run.addFileArg(src_exe);
     return run.addOutputFileArg("ldgen.ld");
 }

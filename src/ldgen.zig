@@ -9,7 +9,15 @@ pub fn main() !void {
     const args = try std.process.argsAlloc(gpa);
     defer std.process.argsFree(gpa, args);
 
-    std.log.info("args: {s}", .{args});
+    if (std.process.getEnvVarOwned(gpa, "LDGEN_VERBOSE") catch |err| switch (err) {
+        error.EnvironmentVariableNotFound => null,
+        else => return err,
+    }) |ldgen_env| {
+        defer gpa.free(ldgen_env);
+        if (std.mem.eql(u8, ldgen_env, "1")) {
+            std.log.info("ldgen args: {s}", .{args});
+        }
+    }
 
     if (args.len != 3) {
         std.log.err("usage: ldgen {{source}} {{target}}", .{});
