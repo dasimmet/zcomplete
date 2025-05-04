@@ -4,7 +4,7 @@ const exit = std.process.exit;
 pub const std_options = std.Options{
     .log_level = .debug,
 };
-pub const help_str = "usage: no_backend {{--help|--version}}";
+pub const help_str = "usage: simple-example {{--help|--version}}";
 pub fn main() !void {
     var arena_alloc = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     const arena = arena_alloc.allocator();
