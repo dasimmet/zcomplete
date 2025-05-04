@@ -127,6 +127,7 @@ pub const Response = struct {
     pub const Header = struct {
         name: []const u8,
     };
+
     pub const Options = union(enum(u32)) {
         unknown,
         zcomperror: []const u8,
@@ -162,7 +163,7 @@ pub const Response = struct {
                 .unknown => return .unknown,
                 .zcomperror => return .{ .zcomperror = try gpa.dupe(u8, payload) },
                 .fill_options => {
-                    var array = std.ArrayListUnmanaged([]const u8).empty;
+                    var array: std.ArrayListUnmanaged([]const u8) = .empty;
                     var slice_start: usize = 0;
                     for (payload, 0..) |c, i| {
                         if (c == 0) {
@@ -197,7 +198,8 @@ pub const Response = struct {
             header_size,
         ) catch unreachable;
         acc.appendNTimesAssumeCapacity(0, header_size);
-        const res: *Serialized = @alignCast(@ptrCast(acc.items.ptr));
+        var res: *Serialized = @alignCast(@ptrCast(acc.items.ptr));
+        res.version = api_version;
         res.offset = header_size;
         res.tag = @intFromEnum(self.options);
         switch (self.options) {
@@ -215,30 +217,33 @@ pub const Response = struct {
                 acc.appendSlice(
                     gpa,
                     &@as([4]u8, @bitCast(ir.min orelse std.math.minInt(i32))),
-                ) catch unreachable;
+                ) catch @panic("OOM");
                 acc.appendSlice(
                     gpa,
                     &@as([4]u8, @bitCast(ir.max orelse std.math.maxInt(i32))),
-                ) catch unreachable;
+                ) catch @panic("OOM");
             },
             else => {
+                res.tag = @intFromEnum(Options.zcomperror);
                 acc.writer(gpa).print(
                     "serialize msg not implemented: {any}",
                     .{self.*},
-                ) catch unreachable;
-                res.tag = @intFromEnum(Options.zcomperror);
+                ) catch @panic("OOM");
             },
         }
+        // need to recast
+        // since the arraylist may have reallocated the slice
+        res = @alignCast(@ptrCast(acc.items.ptr));
         res.len = @intCast(acc.items.len);
         return res;
     }
 
     pub const Serialized = extern struct {
-        version: u32 = api_version,
+        version: i32 = api_version,
         // size of the header
-        offset: u32,
+        offset: i32,
         // size of header + payload
-        len: u32,
+        len: i32,
         tag: @typeInfo(std.meta.Tag(Options)).@"enum".tag_type,
 
         pub fn deinit(self: *@This(), gpa: std.mem.Allocator) void {
@@ -252,9 +257,10 @@ pub const Response = struct {
         }
 
         pub fn parse(self: *@This(), gpa: std.mem.Allocator) !Response {
+            std.debug.assert(self.version == api_version);
             const payload = self.slice();
             const tag_enum: std.meta.Tag(Options) = @enumFromInt(self.tag);
-            // std.log.err("xxxx: {x} {}", .{ slice, tag_enum });
+            // std.log.err("xxxx: {d} {d} {x} {}", .{ self.offset, self.len, payload, tag_enum });
             return .{
                 .header = .{
                     .name = "",

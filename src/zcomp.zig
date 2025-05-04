@@ -7,6 +7,7 @@ const Module = zware.Module;
 const Instance = zware.Instance;
 
 const Object = @import("elf/Object.zig");
+const findProgram = @import("findProgram.zig").findProgram;
 
 pub const usage =
     \\zcomp {--help|eval|bash|complete}
@@ -96,7 +97,7 @@ pub fn bash(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
     defer parsed.deinit(gpa);
 
     const stdout = std.io.getStdOut().writer();
-    const cur_arg = if (argv.len < cur) "" else argv[cur - 1];
+    const cur_arg = if (cur == 0 or argv.len < cur) "" else argv[cur - 1];
 
     switch (parsed.options) {
         .unknown => {},
@@ -160,7 +161,9 @@ pub fn complete(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
     }
 }
 
-pub fn getCompletion(gpa: std.mem.Allocator, cmd: []const u8, cur: usize, args: []const [:0]const u8) !zcomplete.Response {
+pub fn getCompletion(gpa: std.mem.Allocator, raw_cmd: []const u8, cur: usize, args: []const [:0]const u8) !zcomplete.Response {
+    const cmd = try findProgram(gpa, &.{raw_cmd}, &.{});
+    defer gpa.free(cmd);
     const bytes = (try findElfbin(
         gpa,
         cmd,
@@ -189,7 +192,7 @@ pub fn getCompletion(gpa: std.mem.Allocator, cmd: []const u8, cur: usize, args: 
 
     const size = zcomplete.Args.size(cmd, args);
 
-    const wbuf = try wasm_alloc(mem, &instance, size);
+    const wbuf = try Wasm.alloc(mem, &instance, size);
 
     // std.debug.print("buf: {s}\n", .{
     //     wbuf.buf,
@@ -201,7 +204,7 @@ pub fn getCompletion(gpa: std.mem.Allocator, cmd: []const u8, cur: usize, args: 
     //     wbuf.buf[@sizeOf(zcomplete.Args)..], wbuf.buf.len, args[1..].len,
     // });
 
-    const serialized = try run(mem, &instance, wbuf);
+    const serialized = try Wasm.run(mem, &instance, wbuf);
 
     // std.debug.print("out: {any}\n", .{
     //     serialized,
@@ -249,29 +252,31 @@ pub fn findElfbin(gpa: std.mem.Allocator, file: []const u8, section_name: []cons
     return null;
 }
 
-pub const WasmSlice = struct {
-    ptr: usize, // pointer in wasm memory space
-    buf: []u8, // host slice
-};
-
-pub fn wasm_alloc(mem: *zware.Memory, instance: *zware.Instance, count: usize) !WasmSlice {
-    var in: [1]u64 = @splat(count);
-    var out: [1]u64 = @splat(0);
-    try instance.invoke("alloc", &in, &out, .{});
-    return deref(mem, out[0], count);
-}
-
-pub fn run(mem: *zware.Memory, instance: *zware.Instance, inbuf: WasmSlice) !*zcomplete.Response.Serialized {
-    var in: [1]u64 = @splat(inbuf.ptr);
-    var out: [1]u64 = @splat(0);
-    try instance.invoke("run", &in, &out, .{});
-    const res = try deref(mem, out[0], @sizeOf(zcomplete.Response.Serialized));
-    return @alignCast(@ptrCast(res.buf));
-}
-
-pub fn deref(mem: *zware.Memory, ptr: usize, len: usize) !WasmSlice {
-    return .{
-        .ptr = ptr,
-        .buf = mem.memory()[ptr .. ptr + len],
+pub const Wasm = struct {
+    pub const Slice = struct {
+        ptr: usize, // pointer in wasm memory space
+        buf: []u8, // host slice
     };
-}
+
+    pub fn alloc(mem: *zware.Memory, instance: *zware.Instance, count: usize) !Slice {
+        var in: [1]u64 = @splat(count);
+        var out: [1]u64 = @splat(0);
+        try instance.invoke("alloc", &in, &out, .{});
+        return deref(mem, out[0], count);
+    }
+
+    pub fn run(mem: *zware.Memory, instance: *zware.Instance, inbuf: Slice) !*zcomplete.Response.Serialized {
+        var in: [1]u64 = @splat(inbuf.ptr);
+        var out: [1]u64 = undefined;
+        try instance.invoke("run", &in, &out, .{});
+        const res = try deref(mem, out[0], @sizeOf(zcomplete.Response.Serialized));
+        return @alignCast(@ptrCast(res.buf));
+    }
+
+    pub fn deref(mem: *zware.Memory, ptr: usize, len: usize) !Slice {
+        return .{
+            .ptr = ptr,
+            .buf = mem.memory()[ptr .. ptr + len],
+        };
+    }
+};
