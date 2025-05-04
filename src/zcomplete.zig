@@ -116,6 +116,10 @@ pub const Response = struct {
     header: Header,
     options: Options,
 
+    pub fn deinit(self: @This(), gpa: std.mem.Allocator) void {
+        self.options.deinit(gpa);
+    }
+
     pub const Header = struct {
         name: []const u8,
     };
@@ -147,6 +151,38 @@ pub const Response = struct {
                 .min = min,
                 .max = max,
             } };
+        }
+
+        pub fn parse(tag_enum: std.meta.Tag(@This()), gpa: std.mem.Allocator, payload: []const u8) !@This() {
+            switch (tag_enum) {
+                .unknown => return .unknown,
+                .zcomperror => return .{ .zcomperror = try gpa.dupe(u8, payload) },
+                .fill_options => {
+                    var array = std.ArrayListUnmanaged([]const u8).empty;
+                    var slice_start: usize = 0;
+                    for (payload, 0..) |c, i| {
+                        if (c == 0) {
+                            const duped = try gpa.dupe(u8, payload[slice_start..i]);
+                            try array.append(gpa, duped);
+                            slice_start = i + 1;
+                        }
+                    }
+                    return .{
+                        .fill_options = try array.toOwnedSlice(gpa),
+                    };
+                },
+                .int_range => {
+                    const min: i32 = @bitCast(payload[0..4].*);
+                    const max: i32 = @bitCast(payload[4..8].*);
+                    return .{
+                        .int_range = .{
+                            .min = if (min == std.math.minInt(i32)) null else min,
+                            .max = if (max == std.math.maxInt(i32)) null else max,
+                        },
+                    };
+                },
+                else => return error.UnknownField,
+            }
         }
     };
 
@@ -211,39 +247,16 @@ pub const Response = struct {
             return ptr[@intCast(self.offset)..@intCast(self.len)];
         }
 
-        pub fn parse(self: *@This(), gpa: std.mem.Allocator) !Options {
+        pub fn parse(self: *@This(), gpa: std.mem.Allocator) !Response {
             const payload = self.slice();
             const tag_enum: std.meta.Tag(Options) = @enumFromInt(self.tag);
             // std.log.err("xxxx: {x} {}", .{ slice, tag_enum });
-            switch (tag_enum) {
-                .unknown => return .unknown,
-                .zcomperror => return .{ .zcomperror = try gpa.dupe(u8, payload) },
-                .fill_options => {
-                    var array = std.ArrayListUnmanaged([]const u8).empty;
-                    var slice_start: usize = 0;
-                    for (payload, 0..) |c, i| {
-                        if (c == 0) {
-                            const duped = try gpa.dupe(u8, payload[slice_start..i]);
-                            try array.append(gpa, duped);
-                            slice_start = i + 1;
-                        }
-                    }
-                    return .{
-                        .fill_options = try array.toOwnedSlice(gpa),
-                    };
+            return .{
+                .header = .{
+                    .name = "",
                 },
-                .int_range => {
-                    const min: i32 = @bitCast(payload[0..4].*);
-                    const max: i32 = @bitCast(payload[4..8].*);
-                    return .{
-                        .int_range = .{
-                            .min = if (min == std.math.minInt(i32)) null else min,
-                            .max = if (max == std.math.maxInt(i32)) null else max,
-                        },
-                    };
-                },
-                else => return error.UnknownField,
-            }
+                .options = try Options.parse(tag_enum, gpa, payload),
+            };
         }
     };
 };

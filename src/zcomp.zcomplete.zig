@@ -15,13 +15,14 @@ pub fn zcomp(a: *zcomplete.AutoComplete) !void {
             "--help",
         })),
         2 => {
-            if (streql(a.args[1], "extract")) {
+            const cmd = a.args[1];
+            if (streql(cmd, "extract")) {
                 a.respond(.unknown);
-            } else if (streql(a.args[1], "eval")) {
+            } else if (streql(cmd, "eval")) {
                 a.respond(.unknown);
-            } else if (streql(a.args[1], "--help")) {
+            } else if (streql(cmd, "--help")) {
                 a.respond(.unknown);
-            } else if (streql(a.args[1], "bash")) {
+            } else if (streql(cmd, "bash")) {
                 a.respond(.intRangeOptions(
                     1,
                     10,
