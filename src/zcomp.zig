@@ -8,8 +8,24 @@ const Instance = zware.Instance;
 
 const Object = @import("elf/Object.zig");
 
+pub const usage =
+    \\zcomp {--help|eval|bash|complete}
+    \\
+    \\
+;
+
 pub const std_options: std.Options = .{
     .log_level = .debug,
+};
+
+pub const Commands = &.{
+    .{ "eval", eval },
+    .{ "extract", extract },
+    .{ "bash", bash },
+    .{ "complete", complete },
+    .{ "-h", help },
+    .{ "-?", help },
+    .{ "--help", help },
 };
 
 pub fn main() !void {
@@ -20,19 +36,31 @@ pub fn main() !void {
     const args = try std.process.argsAlloc(gpa);
     defer std.process.argsFree(gpa, args);
 
-    if (args.len < 2) return error.NotEnoughArguments;
+    if (args.len < 2) {
+        return help(gpa, &.{});
+    }
 
-    inline for (&.{
-        .{ "extract", extract },
-        .{ "bash", bash },
-        .{ "complete", complete },
-    }) |cmd| {
+    inline for (Commands) |cmd| {
         if (std.mem.eql(u8, cmd[0], args[1])) {
             return cmd[1](gpa, args[2..]);
         }
     }
 
     return error.UnknownCommand;
+}
+
+pub fn help(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
+    _ = gpa;
+    _ = args;
+    const stdout = std.io.getStdOut();
+    try stdout.writeAll(usage);
+}
+
+pub fn eval(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
+    _ = gpa;
+    _ = args;
+    const stdout = std.io.getStdOut();
+    try stdout.writeAll(@embedFile("share/zcomplete.bash"));
 }
 
 pub fn extract(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
@@ -62,11 +90,12 @@ pub fn bash(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
 
     const stderr = std.io.getStdErr().writer();
     const stdout = std.io.getStdOut().writer();
+    const cur_arg = if (argv.len < cur) "" else argv[cur - 1];
+
     switch (parsed) {
         .unknown => {},
         .fill_options => |opts| {
             if (cur > 0) {
-                const cur_arg = if (argv.len < cur) "" else argv[cur - 1];
                 outer: for (opts) |opt| {
                     if (std.mem.startsWith(u8, opt, cur_arg)) {
                         for (opt) |c| {
@@ -80,9 +109,17 @@ pub fn bash(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
                 }
             }
         },
-        .int_range => |_| {},
+        .int_range => |range| {
+            for (@as(usize, @intCast(range.min orelse 0))..@as(usize, @intCast(range.max orelse 10))) |i| {
+                var i_buf: [64]u8 = undefined;
+                const i_str = try std.fmt.bufPrint(&i_buf, "{d}", .{i});
+                if (std.mem.startsWith(u8, i_str, cur_arg)) {
+                    try stdout.print("{d}\n", .{i});
+                }
+            }
+        },
         .zcomperror => |msg| {
-            try stderr.print("\nzcomperr:\n{s}\n", .{msg});
+            try stderr.print("\nzcomp error:\n{s}\n", .{msg});
             std.process.exit(1);
         },
         else => @panic("response not implemented!"),
@@ -130,6 +167,13 @@ pub fn getCompletion(gpa: std.mem.Allocator, cmd: []const u8, cur: usize, args: 
     var instance = Instance.init(gpa, &store, module);
     try instance.instantiate();
     defer instance.deinit();
+
+    // var has_alloc = false;
+    // var has_run = false;
+    // for (instance.module.exports.itemsSlice()) |it| {
+    //     if (it.name == )
+    // }
+
     const mem = try instance.getMemory(0);
 
     const size = zcomplete.Args.size(cmd, args);

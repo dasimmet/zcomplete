@@ -59,7 +59,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    addZCompleteLp(b, simple_exe, zcomplete, b.path("examples/simple-example.zcomplete.zig"));
+    ZComplete.addLazyPath(b, simple_exe, zcomplete, b.path("examples/simple-example.zcomplete.zig"));
     const example_step = b.step("example", "build an example with embedded completion");
     example_step.dependOn(&b.addInstallArtifact(simple_exe, .{}).step);
 
@@ -78,7 +78,7 @@ pub fn build(b: *std.Build) void {
                 });
                 clap_exe_complete.addImport("clap", backend_module.?);
                 clap_exe_complete.addImport("zcomplete", zcomplete);
-                addZComplete(b, clap_exe, zcomplete, clap_exe_complete);
+                ZComplete.addModule(b, clap_exe, zcomplete, clap_exe_complete);
             }
             example_step.dependOn(&b.addInstallArtifact(clap_exe, .{}).step);
             break :blk clap_exe;
@@ -97,7 +97,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     }).module("zware"));
-    addZCompleteLp(b, exe, zcomplete, b.path("src/zcomp.zcomplete.zig"));
+    ZComplete.addLazyPath(b, exe, zcomplete, b.path("src/zcomp.zcomplete.zig"));
     b.installArtifact(exe);
 
     const add_completion = b.addInstallFile(
@@ -119,45 +119,47 @@ pub fn build(b: *std.Build) void {
     run_step.dependOn(&run_cmd.step);
 }
 
-pub fn addZCompleteLp(b: *std.Build, exe: *std.Build.Step.Compile, zcomplete: *std.Build.Module, specfile: LazyPath) void {
-    const spec_mod = b.addModule("specfile", .{
-        .root_source_file = specfile,
-    });
-    spec_mod.addImport("zcomplete", zcomplete);
-    return addZComplete(b, exe, zcomplete, spec_mod);
-}
+pub const ZComplete = struct {
+    pub fn addLazyPath(b: *std.Build, exe: *std.Build.Step.Compile, zcomplete: *std.Build.Module, specfile: LazyPath) void {
+        const spec_mod = b.addModule("specfile", .{
+            .root_source_file = specfile,
+        });
+        spec_mod.addImport("zcomplete", zcomplete);
+        return addModule(b, exe, zcomplete, spec_mod);
+    }
 
-pub fn addZComplete(b: *std.Build, exe: *std.Build.Step.Compile, zcomplete: *std.Build.Module, spec_mod: *std.Build.Module) void {
-    const spec_exe = buildZComplete(
-        b,
-        b.fmt("{s}-zcomplete", .{exe.name}),
-        zcomplete,
-        spec_mod,
-    );
-    exe.setLinkerScript(zcomplete_ldgen(b, zcomplete, spec_exe.getEmittedBin()));
-}
+    pub fn addModule(b: *std.Build, exe: *std.Build.Step.Compile, zcomplete: *std.Build.Module, spec_mod: *std.Build.Module) void {
+        const spec_exe = buildExe(
+            b,
+            b.fmt("{s}-zcomplete", .{exe.name}),
+            zcomplete,
+            spec_mod,
+        );
+        exe.setLinkerScript(zcomplete_ldgen(b, zcomplete, spec_exe.getEmittedBin()));
+    }
 
-pub fn buildZComplete(b: *std.Build, name: []const u8, zcomplete: *std.Build.Module, spec_mod: *std.Build.Module) *std.Build.Step.Compile {
-    const exe = b.addExecutable(.{
-        .name = name,
-        .root_source_file = b.path("src/module.zig"),
-        .target = b.resolveTargetQuery(.{
-            .cpu_arch = .wasm32,
-            .os_tag = .freestanding,
-            .abi = .none,
-            .cpu_model = .{
-                .explicit = std.Target.Cpu.Model.generic(.wasm32),
-            },
-        }),
-        .optimize = .ReleaseSmall,
-    });
-    exe.rdynamic = true;
-    exe.entry = .disabled;
-    exe.root_module.addImport("specfile", spec_mod);
-    exe.root_module.addImport("zcomplete", zcomplete);
+    pub fn buildExe(b: *std.Build, name: []const u8, zcomplete: *std.Build.Module, spec_mod: *std.Build.Module) *std.Build.Step.Compile {
+        const exe = b.addExecutable(.{
+            .name = name,
+            .root_source_file = b.path("src/module.zig"),
+            .target = b.resolveTargetQuery(.{
+                .cpu_arch = .wasm32,
+                .os_tag = .freestanding,
+                .abi = .none,
+                .cpu_model = .{
+                    .explicit = std.Target.Cpu.Model.generic(.wasm32),
+                },
+            }),
+            .optimize = .ReleaseSmall,
+        });
+        exe.rdynamic = true;
+        exe.entry = .disabled;
+        exe.root_module.addImport("specfile", spec_mod);
+        exe.root_module.addImport("zcomplete", zcomplete);
 
-    return exe;
-}
+        return exe;
+    }
+};
 
 pub fn zcomplete_ldgen(b: *std.Build, zcomplete: *std.Build.Module, src_exe: LazyPath) LazyPath {
     const ldgen = b.addExecutable(.{

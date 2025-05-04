@@ -17,13 +17,21 @@ pub const AutoComplete = struct {
     args: []const [:0]const u8,
 
     // the response provided by the module. use the .respond function to set it.
-    response: Response.Options = .unknown,
+    response: Response = .{
+        .header = .{
+            .name = "",
+        },
+        .options = .unknown,
+    },
 
+    pub fn name(self: *@This(), exename: []const u8) void {
+        self.response.header.name = exename;
+    }
     pub fn respond(self: *@This(), opt: Response.Options) void {
-        self.response = opt;
+        self.response.options = opt;
     }
     pub fn panic(self: *@This(), comptime fmt: []const u8, args: anytype) void {
-        self.response = .{
+        self.response.options = .{
             .zcomperror = std.fmt.allocPrint(
                 self.allocator,
                 fmt,
@@ -105,6 +113,12 @@ pub const Args = extern struct {
 };
 
 pub const Response = struct {
+    header: Header,
+    options: Options,
+
+    pub const Header = struct {
+        name: []const u8,
+    };
     pub const Options = union(enum(u32)) {
         unknown,
         zcomperror: []const u8,
@@ -134,50 +148,50 @@ pub const Response = struct {
                 .max = max,
             } };
         }
-
-        pub fn serialize(self: *@This(), gpa: std.mem.Allocator) *Serialized {
-            const header_size = @sizeOf(Serialized);
-            var acc = std.ArrayListUnmanaged(u8).initCapacity(
-                gpa,
-                header_size,
-            ) catch unreachable;
-            acc.appendNTimesAssumeCapacity(0, header_size);
-            const res: *Serialized = @alignCast(@ptrCast(acc.items.ptr));
-            res.offset = header_size;
-            res.tag = @intFromEnum(self.*);
-            switch (self.*) {
-                .unknown => {},
-                .zcomperror => |msg| {
-                    acc.appendSlice(gpa, msg) catch @panic("OOM");
-                },
-                .fill_options => |opts| {
-                    for (opts) |opt| {
-                        acc.appendSlice(gpa, opt) catch @panic("OOM");
-                        acc.append(gpa, 0) catch @panic("OOM");
-                    }
-                },
-                .int_range => |ir| {
-                    acc.appendSlice(
-                        gpa,
-                        &@as([4]u8, @bitCast(ir.min orelse std.math.minInt(i32))),
-                    ) catch unreachable;
-                    acc.appendSlice(
-                        gpa,
-                        &@as([4]u8, @bitCast(ir.max orelse std.math.maxInt(i32))),
-                    ) catch unreachable;
-                },
-                else => {
-                    acc.writer(gpa).print(
-                        "serialize msg not implemented: {any}",
-                        .{self.*},
-                    ) catch unreachable;
-                    res.tag = @intFromEnum(@This().zcomperror);
-                },
-            }
-            res.len = @intCast(acc.items.len);
-            return res;
-        }
     };
+
+    pub fn serialize(self: *@This(), gpa: std.mem.Allocator) *Serialized {
+        const header_size = @sizeOf(Serialized);
+        var acc = std.ArrayListUnmanaged(u8).initCapacity(
+            gpa,
+            header_size,
+        ) catch unreachable;
+        acc.appendNTimesAssumeCapacity(0, header_size);
+        const res: *Serialized = @alignCast(@ptrCast(acc.items.ptr));
+        res.offset = header_size;
+        res.tag = @intFromEnum(self.options);
+        switch (self.options) {
+            .unknown => {},
+            .zcomperror => |msg| {
+                acc.appendSlice(gpa, msg) catch @panic("OOM");
+            },
+            .fill_options => |opts| {
+                for (opts) |opt| {
+                    acc.appendSlice(gpa, opt) catch @panic("OOM");
+                    acc.append(gpa, 0) catch @panic("OOM");
+                }
+            },
+            .int_range => |ir| {
+                acc.appendSlice(
+                    gpa,
+                    &@as([4]u8, @bitCast(ir.min orelse std.math.minInt(i32))),
+                ) catch unreachable;
+                acc.appendSlice(
+                    gpa,
+                    &@as([4]u8, @bitCast(ir.max orelse std.math.maxInt(i32))),
+                ) catch unreachable;
+            },
+            else => {
+                acc.writer(gpa).print(
+                    "serialize msg not implemented: {any}",
+                    .{self.*},
+                ) catch unreachable;
+                res.tag = @intFromEnum(Options.zcomperror);
+            },
+        }
+        res.len = @intCast(acc.items.len);
+        return res;
+    }
 
     pub const Serialized = extern struct {
         version: u32 = api_version,
@@ -233,3 +247,7 @@ pub const Response = struct {
         }
     };
 };
+
+pub fn streql(a: []const u8, b: []const u8) bool {
+    return std.mem.eql(u8, a, b);
+}

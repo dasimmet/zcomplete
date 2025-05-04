@@ -9,6 +9,7 @@ const main_parsers = .{
 const main_clap = clap.parseParamsComptime(root.main_params);
 
 pub fn zcomp(a: *zcomplete.AutoComplete) void {
+    a.name("clap-example");
     // var diag = clap.Diagnostic{};
     // var res = clap.parseEx(
     //     clap.Help,
