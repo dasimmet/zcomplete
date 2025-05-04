@@ -13,6 +13,8 @@ pub fn zcomp(a: *zcomplete.AutoComplete) !void {
             "complete",
             "eval",
             "--help",
+            "-h",
+            "-?",
         })),
         2 => {
             const cmd = a.args[1];

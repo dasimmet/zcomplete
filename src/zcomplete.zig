@@ -24,17 +24,21 @@ pub const AutoComplete = struct {
         .options = .unknown,
     },
 
+    pub fn fmt(self: @This(), comptime format: []const u8, args: anytype) []const u8 {
+        return std.fmt.allocPrint(self.allocator, format, args) catch unreachable;
+    }
+
     pub fn name(self: *@This(), exename: []const u8) void {
         self.response.header.name = exename;
     }
     pub fn respond(self: *@This(), opt: Response.Options) void {
         self.response.options = opt;
     }
-    pub fn panic(self: *@This(), comptime fmt: []const u8, args: anytype) void {
+    pub fn panic(self: *@This(), comptime format: []const u8, args: anytype) void {
         self.response.options = .{
             .zcomperror = std.fmt.allocPrint(
                 self.allocator,
-                fmt,
+                format,
                 args,
             ) catch unreachable,
         };

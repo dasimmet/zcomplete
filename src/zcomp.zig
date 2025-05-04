@@ -146,10 +146,15 @@ pub fn complete(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
         parsed,
     });
 
+    const stderr = std.io.getStdErr().writer();
+
     switch (parsed.options) {
-        .unknown => {},
         .fill_options => |opts| {
-            std.log.err("opts: {s}", .{opts});
+            try stderr.print("opt: {s}\n", .{opts});
+        },
+        .zcomperror => |msg| {
+            try stderr.print("\nzcomp error:\n{s}\n", .{msg});
+            std.process.exit(1);
         },
         else => {},
     }
