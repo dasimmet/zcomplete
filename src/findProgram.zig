@@ -3,7 +3,7 @@ const fs = std.fs;
 const mem = std.mem;
 const builtin = @import("builtin");
 
-pub fn findProgram(gpa: std.mem.Allocator, names: []const []const u8, paths: []const []const u8) ![]const u8 {
+pub fn findProgram(gpa: std.mem.Allocator, names: []const []const u8, paths: []const []const u8, debug: bool) ![]const u8 {
     // arena for intermediate allocations
     var arena_alloc = std.heap.ArenaAllocator.init(gpa);
     defer arena_alloc.deinit();
@@ -13,12 +13,14 @@ pub fn findProgram(gpa: std.mem.Allocator, names: []const []const u8, paths: []c
         if (fs.path.isAbsolute(name)) {
             return gpa.dupe(u8, name);
         }
-        if (name.len >= 2 and name[0] == '.' and std.mem.startsWith(u8, name[1..], fs.path.sep_str)) {
+        if (builtin.os.tag == .windows or std.mem.startsWith(u8, name, "." ++ fs.path.sep_str)) {
             if (fs.realpathAlloc(gpa, name)) |p| {
                 return p;
             } else |err| switch (err) {
                 error.OutOfMemory => @panic("OOM"),
-                else => {},
+                else => {
+                    if (debug) std.log.warn("rp: {s} {}", .{ name, err });
+                },
             }
         }
     }
@@ -31,23 +33,26 @@ pub fn findProgram(gpa: std.mem.Allocator, names: []const []const u8, paths: []c
                     gpa,
                     arena,
                     try std.fs.path.join(arena, &.{ p, name }),
+                    debug,
                 ) orelse continue;
             }
         }
     }
     for (names) |name| {
         for (paths) |p| {
-            return tryFindProgram(gpa, arena, try fs.path.join(
+            return tryFindProgram(
+                gpa,
                 arena,
-                &.{ p, name },
-            )) orelse continue;
+                try fs.path.join(arena, &.{ p, name }),
+                debug,
+            ) orelse continue;
         }
     }
     return error.FileNotFound;
 }
 
-fn tryFindProgram(gpa: std.mem.Allocator, arena: std.mem.Allocator, full_path: []const u8) ?[]const u8 {
-    // std.log.err("fp: {s}", .{full_path});
+fn tryFindProgram(gpa: std.mem.Allocator, arena: std.mem.Allocator, full_path: []const u8, debug: bool) ?[]const u8 {
+    if (debug) std.log.warn("fp: {s}", .{full_path});
     if (fs.realpathAlloc(gpa, full_path)) |p| {
         return p;
     } else |err| switch (err) {

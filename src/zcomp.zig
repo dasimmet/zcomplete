@@ -88,7 +88,7 @@ pub fn bash(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
     const stderr = std.io.getStdErr().writer();
 
     const argv = args[2..];
-    const parsed = getCompletion(gpa, cmd, cur, argv) catch |err| switch (err) {
+    const parsed = getCompletion(gpa, cmd, cur, argv, false) catch |err| switch (err) {
         else => {
             try stderr.print("error: {}", .{err});
             return;
@@ -140,7 +140,7 @@ pub fn complete(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
 
     std.debug.print("cmd: {s} cur: {d} args: {s}\n", .{ cmd, cur, args[1..] });
 
-    const parsed = try getCompletion(gpa, cmd, cur, args[1..]);
+    const parsed = try getCompletion(gpa, cmd, cur, args[1..], true);
     defer parsed.deinit(gpa);
 
     std.debug.print("out: {any}\n", .{
@@ -161,8 +161,8 @@ pub fn complete(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
     }
 }
 
-pub fn getCompletion(gpa: std.mem.Allocator, raw_cmd: []const u8, cur: usize, args: []const [:0]const u8) !zcomplete.Response {
-    const cmd = try findProgram(gpa, &.{raw_cmd}, &.{});
+pub fn getCompletion(gpa: std.mem.Allocator, raw_cmd: []const u8, cur: usize, args: []const [:0]const u8, debug: bool) !zcomplete.Response {
+    const cmd = try findProgram(gpa, &.{raw_cmd}, &.{}, debug);
     defer gpa.free(cmd);
     const bytes = (try findElfbin(
         gpa,
