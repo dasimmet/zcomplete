@@ -19,14 +19,31 @@ pub const std_options: std.Options = .{
     .log_level = .debug,
 };
 
-pub const Commands = &.{
-    .{ "eval", eval },
-    .{ "extract", extract },
-    .{ "bash", bash },
-    .{ "complete", complete },
-    .{ "-h", help },
-    .{ "-?", help },
-    .{ "--help", help },
+pub const Command = enum {
+    eval,
+    extract,
+    bash,
+    complete,
+    help,
+    @"--help",
+    @"-h",
+    @"-?",
+};
+
+pub const CommandFn = struct {
+    pub const Type = *const fn (std.mem.Allocator, []const [:0]const u8) anyerror!void;
+    pub fn function(self: Command) Type {
+        return switch (self) {
+            .eval => eval,
+            .extract => extract,
+            .bash => bash,
+            .complete => complete,
+            .help => help,
+            .@"--help" => help,
+            .@"-h" => help,
+            .@"-?" => help,
+        };
+    }
 };
 
 pub fn main() !void {
@@ -41,9 +58,9 @@ pub fn main() !void {
         return help(gpa, &.{});
     }
 
-    inline for (Commands) |cmd| {
-        if (std.mem.eql(u8, cmd[0], args[1])) {
-            return cmd[1](gpa, args[2..]);
+    inline for (std.meta.fields(Command)) |cmd| {
+        if (std.mem.eql(u8, cmd.name, args[1])) {
+            return CommandFn.function(@field(Command, cmd.name))(gpa, args[2..]);
         }
     }
 
