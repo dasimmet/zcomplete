@@ -49,8 +49,8 @@ pub const AutoComplete = struct {
 
     pub fn enumNames(self: *@This(), any_enum: type) []const []const u8 {
         var list = std.ArrayListUnmanaged([]const u8).empty;
-        inline for (std.meta.fields(any_enum)) |field| {
-            list.append(self.allocator, field.name) catch unreachable;
+        inline for (std.meta.fieldNames(any_enum)) |field| {
+            list.append(self.allocator, field) catch unreachable;
         }
         return list.toOwnedSlice(self.allocator) catch unreachable;
     }
