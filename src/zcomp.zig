@@ -1,6 +1,7 @@
 const std = @import("std");
 const zcomplete = @import("zcomplete");
 const zware = @import("zware");
+const known_folders = @import("known-folders");
 
 const Store = zware.Store;
 const Module = zware.Module;
@@ -105,13 +106,20 @@ pub fn bash(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
     const stderr = std.io.getStdErr().writer();
 
     const argv = args[2..];
+
+    const log = try openLog(gpa);
+    defer log.close();
+    try log.writer().print("completing: {s} {s}\n", .{ cmd, argv });
+
     const parsed = getCompletion(gpa, cmd, cur, argv, false) catch |err| switch (err) {
         else => {
-            try stderr.print("error: {}", .{err});
+            try log.writer().print("getCompletion error: {}\n", .{err});
             return;
         },
     };
     defer parsed.deinit(gpa);
+
+    try log.writer().print("response: {any}\n", .{parsed});
 
     const stdout = std.io.getStdOut().writer();
     const cur_arg = if (cur == 0 or argv.len < cur) "" else argv[cur - 1];
@@ -119,6 +127,7 @@ pub fn bash(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
     switch (parsed.options) {
         .unknown => {},
         .fill_options => |opts| {
+            try log.writer().print("opts: {s}\n", .{opts});
             if (cur > 0) {
                 outer: for (opts) |opt| {
                     if (std.mem.startsWith(u8, opt, cur_arg)) {
@@ -297,3 +306,19 @@ pub const Wasm = struct {
         };
     }
 };
+
+pub fn openLog(gpa: std.mem.Allocator) !std.fs.File {
+    const runtime_dir = try known_folders.open(gpa, .cache, .{});
+    if (runtime_dir) |dir| {
+        dir.makeDir("zcomp") catch |err| switch (err) {
+            error.PathAlreadyExists => {},
+            else => return err,
+        };
+        const log_f = try dir.createFile("zcomp/zcomp.log", .{
+            .truncate = false,
+        });
+        try log_f.seekFromEnd(0);
+        return log_f;
+    }
+    return error.NoRuntimePathAvailable;
+}

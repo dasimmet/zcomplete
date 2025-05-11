@@ -6,8 +6,8 @@ const root = @import("zcomp.zig");
 pub fn zcomp(a: *zcomplete.AutoComplete) !void {
     a.name("zcomp");
 
-    const cmd = switch (a.args.len) {
-        0 => null,
+    const cmd: ?root.Command = switch (a.args.len) {
+        0, 1 => null,
         else => cmd: {
             inline for (comptime std.meta.fieldNames(root.Command)) |fieldname| {
                 if (std.mem.eql(u8, fieldname, a.args[1])) break :cmd @field(root.Command, fieldname);

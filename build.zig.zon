@@ -13,6 +13,10 @@
             .url = "git+https://github.com/Hejsil/zig-clap.git#a4e784da8399c51d5eeb5783e6a485b960d5c1f9",
             .hash = "clap-0.10.0-oBajB8fkAQB0JvsrWLar4YZrseSZ9irFxHB7Hvy_bvxb",
         },
+        .known_folders = .{
+            .url = "git+https://github.com/ziglibs/known-folders#aa24df42183ad415d10bc0a33e6238c437fc0f59",
+            .hash = "known_folders-0.0.0-Fy-PJtLDAADGDOwYwMkVydMSTp_aN-nfjCZw6qPQ2ECL",
+        },
     },
 
     .paths = .{

@@ -9,6 +9,7 @@ pub const Backend = enum {
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const known_folders = b.dependency("known_folders", .{}).module("known-folders");
 
     const backend = b.option(
         Backend,
@@ -92,6 +93,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    exe.root_module.addImport("known-folders", known_folders);
     exe.root_module.addImport("zcomplete", zcomplete);
     exe.root_module.addImport("zware", b.dependency("zware", .{
         .target = target,

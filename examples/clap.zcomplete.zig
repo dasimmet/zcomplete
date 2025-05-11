@@ -16,7 +16,7 @@ pub fn zcomp(a: *zcomplete.AutoComplete) void {
         names[i] = a.fmt("--{s}", .{param.names.longest().name});
     }
     inline for (std.meta.fields(root.SubCommands), main_clap.len..) |cmd, i| {
-        names[i] = a.fmt("--{s}", .{cmd.name});
+        names[i] = a.fmt("{s}", .{cmd.name});
     }
 
     switch (a.cur) {
