@@ -15,7 +15,15 @@ pub fn main() !void {
     }) |ldgen_env| {
         defer gpa.free(ldgen_env);
         if (std.mem.eql(u8, ldgen_env, "1")) {
-            std.log.info("ldgen args: {s}", .{args});
+            std.log.info("ldgen args: {f}", .{struct {
+                args: []const []const u8,
+                pub fn format(self: @This(), w: *std.Io.Writer) !void {
+                    for (self.args) |arg| {
+                        try w.writeAll(arg);
+                        try w.writeAll(" ");
+                    }
+                }
+            }{ .args = args }});
         }
     }
 
@@ -31,19 +39,23 @@ pub fn main() !void {
 
     const out_fd = try std.fs.cwd().createFile(target, .{});
     defer out_fd.close();
+    var out_buf: [4096]u8 = undefined;
+    var out_w = out_fd.writer(&out_buf);
+    const out_writer = &out_w.interface;
 
-    try out_fd.writeAll(script_header);
-    try out_fd.writeAll(zcomplete.linker_section_name);
-    try out_fd.writeAll(script_section_header);
+    try out_writer.writeAll(script_header);
+    try out_writer.writeAll(zcomplete.linker_section_name);
+    try out_writer.writeAll(script_section_header);
     for (input, 0..) |byte, i| {
         if ((i % 4) == 0) {
-            try out_fd.writeAll("\n        ");
+            try out_writer.writeAll("\n        ");
         } else {
-            try out_fd.writeAll(" ");
+            try out_writer.writeAll(" ");
         }
-        try out_fd.writer().print("BYTE(0x{X:0>2})", .{byte});
+        try out_writer.print("BYTE(0x{X:0>2})", .{byte});
     }
-    try out_fd.writeAll(script_footer);
+    try out_writer.writeAll(script_footer);
+    try out_writer.flush();
 }
 
 const script_header =

@@ -16,15 +16,15 @@ comptime {
     });
 }
 
-fn zcomplete_alloc(len: isize) callconv(.C) [*]u8 {
+fn zcomplete_alloc(len: isize) callconv(.c) [*]u8 {
     const ptr = allocator.alloc(
         u8,
         @bitCast(len),
     ) catch @panic("OOM");
-    return @alignCast(@ptrCast(ptr.ptr));
+    return @ptrCast(@alignCast(ptr.ptr));
 }
 
-fn zcomplete_run(args: *zcomplete.Args) callconv(.C) *zcomplete.Response.Serialized {
+fn zcomplete_run(args: *zcomplete.Args) callconv(.c) *zcomplete.Response.Serialized {
     var autocomplete = allocator.create(zcomplete.AutoComplete) catch @panic("OOM");
     autocomplete.allocator = allocator;
     autocomplete.cur = args.cur;

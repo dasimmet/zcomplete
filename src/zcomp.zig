@@ -71,14 +71,20 @@ pub fn main() !void {
 pub fn help(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
     _ = gpa;
     _ = args;
-    const stdout = std.io.getStdOut();
+    const stdout_fd = std.fs.File.stdout();
+    var stdout_buf: [4096]u8 = undefined;
+    var stdout_writer = stdout_fd.writer(&stdout_buf);
+    const stdout = &stdout_writer.interface;
     try stdout.writeAll(usage);
 }
 
 pub fn eval(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
     _ = gpa;
     _ = args;
-    const stdout = std.io.getStdOut();
+    const stdout_fd = std.fs.File.stdout();
+    var stdout_buf: [4096]u8 = undefined;
+    var stdout_writer = stdout_fd.writer(&stdout_buf);
+    const stdout = &stdout_writer.interface;
     try stdout.writeAll(@embedFile("share/zcomplete.bash"));
 }
 
@@ -103,13 +109,18 @@ pub fn bash(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
     const cur = try std.fmt.parseInt(usize, args[0], 10);
     const cmd = args[1];
 
-    const stderr = std.io.getStdErr().writer();
+    const stderr_fd = std.fs.File.stderr();
+    var stderr_buf: [4096]u8 = undefined;
+    var stderr_writer = stderr_fd.writer(&stderr_buf);
+    const stderr = &stderr_writer.interface;
 
     const argv = args[2..];
 
-    const log = try openLog(gpa);
-    defer log.close();
-    try log.writer().print("completing: {s} {s}\n", .{ cmd, argv });
+    const log_fd = try openLog(gpa);
+    defer log_fd.close();
+    var log_w = log_fd.writer(&.{});
+    const log = &log_w.interface;
+    try log.print("completing: {s} {s}\n", .{ cmd, argv });
 
     const parsed = getCompletion(gpa, cmd, cur, argv, false) catch |err| switch (err) {
         else => {
@@ -121,7 +132,10 @@ pub fn bash(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
 
     try log.writer().print("response: {any}\n", .{parsed});
 
-    const stdout = std.io.getStdOut().writer();
+    const stdout_fd = std.fs.File.stdout();
+    var stdout_buf: [4096]u8 = undefined;
+    var stdout_writer = stdout_fd.writer(&stdout_buf);
+    const stdout = &stdout_writer.interface;
     const cur_arg = if (cur == 0 or argv.len < cur) "" else argv[cur - 1];
 
     switch (parsed.options) {
@@ -157,6 +171,8 @@ pub fn bash(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
         },
         else => @panic("response not implemented!"),
     }
+    try stdout.flush();
+    try stderr.flush();
 }
 
 pub fn complete(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
@@ -296,7 +312,7 @@ pub const Wasm = struct {
         var out: [1]u64 = undefined;
         try instance.invoke("run", &in, &out, .{});
         const res = try deref(mem, out[0], @sizeOf(zcomplete.Response.Serialized));
-        return @alignCast(@ptrCast(res.buf));
+        return @ptrCast(@alignCast(res.buf));
     }
 
     pub fn deref(mem: *zware.Memory, ptr: usize, len: usize) !Slice {

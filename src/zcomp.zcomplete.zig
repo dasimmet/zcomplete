@@ -24,8 +24,7 @@ pub fn zcomp(a: *zcomplete.AutoComplete) !void {
             switch (cmd.?) {
                 .extract => a.respond(.unknown),
                 .eval => a.respond(.unknown),
-                .help, .@"--help", .@"-h",
-                .@"-?" => a.respond(.unknown),
+                .help, .@"--help", .@"-h", .@"-?" => a.respond(.unknown),
                 .complete => a.respond(.unknown),
                 .bash => a.respond(.intRangeOptions(
                     1,

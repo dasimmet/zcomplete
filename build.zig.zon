@@ -2,23 +2,20 @@
     .name = .clapcomplete,
     .version = "0.0.0",
     .fingerprint = 0x9714dfb9c96ac191,
-    .minimum_zig_version = "0.15.0-dev.386+2e35fdd03",
-
+    .minimum_zig_version = "0.15.1",
     .dependencies = .{
+        .known_folders = .{
+            .url = "git+https://github.com/ziglibs/known-folders.git#ab5cf5feb936fa3b72c95d3ad0c0c67791937ba1",
+            .hash = "known_folders-0.0.0-Fy-PJtTTAADUOhGKM0sxzG4eMkNQxRvx9e5dfHVyaeA3",
+        },
         .zware = .{
-            .url = "git+https://github.com/malcolmstill/zware.git#755d56fc47cebd9dedd6bbeba753e969f6e5187e",
-            .hash = "zware-0.0.1-ZA7j6X3jBABhBIltmAF9N6OP7VTsgFP3O1xPkgiaCY_t",
+            .path = "../zware",
         },
         .clap = .{
-            .url = "git+https://github.com/Hejsil/zig-clap.git#a4e784da8399c51d5eeb5783e6a485b960d5c1f9",
-            .hash = "clap-0.10.0-oBajB8fkAQB0JvsrWLar4YZrseSZ9irFxHB7Hvy_bvxb",
-        },
-        .known_folders = .{
-            .url = "git+https://github.com/ziglibs/known-folders#aa24df42183ad415d10bc0a33e6238c437fc0f59",
-            .hash = "known_folders-0.0.0-Fy-PJtLDAADGDOwYwMkVydMSTp_aN-nfjCZw6qPQ2ECL",
+            .url = "git+https://github.com/Hejsil/zig-clap.git#5289e0753cd274d65344bef1c114284c633536ea",
+            .hash = "clap-0.11.0-oBajB-HnAQDPCKYzwF7rO3qDFwRcD39Q0DALlTSz5H7e",
         },
     },
-
     .paths = .{
         "build.zig",
         "build.zig.zon",

@@ -75,7 +75,7 @@ pub const Args = extern struct {
     pub fn serialize(buf: []u8, cmd: []const u8, cur: usize, args: []const []const u8) *@This() {
         const mysize = Args.size(cmd, args);
         std.debug.assert(buf.len == mysize);
-        const self: *@This() = @alignCast(@ptrCast(buf.ptr));
+        const self: *@This() = @ptrCast(@alignCast(buf.ptr));
         self.* = .{
             .offset = @intCast(@sizeOf(@This())),
             .len = @intCast(mysize),
@@ -98,7 +98,7 @@ pub const Args = extern struct {
     }
 
     pub fn slice(self: *@This()) []u8 {
-        var ptr: [*]u8 = @alignCast(@ptrCast(self));
+        var ptr: [*]u8 = @ptrCast(@alignCast(self));
         return ptr[@intCast(self.offset)..@intCast(self.len)];
     }
 
@@ -206,7 +206,7 @@ pub const Response = struct {
             header_size,
         ) catch unreachable;
         acc.appendNTimesAssumeCapacity(0, header_size);
-        var res: *Serialized = @alignCast(@ptrCast(acc.items.ptr));
+        var res: *Serialized = @ptrCast(@alignCast(acc.items.ptr));
         res.version = api_version;
         res.offset = header_size;
         res.tag = @intFromEnum(self.options);
@@ -241,7 +241,7 @@ pub const Response = struct {
         }
         // need to recast
         // since the arraylist may have reallocated the slice
-        res = @alignCast(@ptrCast(acc.items.ptr));
+        res = @ptrCast(@alignCast(acc.items.ptr));
         res.len = @intCast(acc.items.len);
         return res;
     }
@@ -260,7 +260,7 @@ pub const Response = struct {
         }
 
         pub fn slice(self: *@This()) []u8 {
-            var ptr: [*]u8 = @alignCast(@ptrCast(self));
+            var ptr: [*]u8 = @ptrCast(@alignCast(self));
             return ptr[@intCast(self.offset)..@intCast(self.len)];
         }
 
