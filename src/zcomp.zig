@@ -272,28 +272,11 @@ pub fn findElfbin(gpa: std.mem.Allocator, file: []const u8, section_name: []cons
     defer arena_alloc.deinit();
     const arena = arena_alloc.allocator();
 
-    std.log.info("iself: {}", .{try elf.Archive.isArchive(file)});
-
     const file_bytes = try std.fs.cwd().readFileAlloc(
         arena,
         file,
         std.math.maxInt(u32),
     );
-
-    // var archive = elf.Archive{
-    //     .arena = arena,
-    //     .data = file_bytes,
-    //     .path = file,
-    //     .opts = .{
-    //         .wide = true,
-    //     },
-    // };
-    // try archive.parse();
-
-    // var it = archive.objects.iterator();
-    // while (it.next()) |obj| {
-    //     std.log.info("o: {s} {any}", .{ section_name, obj });
-    // }
 
     var object = elf.Object{
         .arena = arena,
@@ -309,15 +292,15 @@ pub fn findElfbin(gpa: std.mem.Allocator, file: []const u8, section_name: []cons
     for (object.shdrs.items) |shdr| {
         const sh_name = object.getShString(shdr.sh_name);
         const ofs = shdr.sh_offset;
-        std.log.info("here: {s} 0x{x} 0x{x} 0x{x} 0x{x} 0x{x}", .{
-            sh_name,
-            ofs,
-            shdr.sh_addr,
-            shdr.sh_offset,
-            shdr.sh_size,
-            shdr.sh_entsize,
-        });
-        if (std.mem.eql(u8, sh_name, section_name)) {
+        // std.log.info("here: {s} 0x{x} 0x{x} 0x{x} 0x{x} 0x{x}", .{
+        //     sh_name,
+        //     ofs,
+        //     shdr.sh_addr,
+        //     shdr.sh_offset,
+        //     shdr.sh_size,
+        //     shdr.sh_entsize,
+        // });
+        if (shdr.sh_type == std.elf.SHT_NOTE and std.mem.eql(u8, sh_name, section_name)) {
             return try gpa.dupe(u8, file_bytes[ofs .. ofs + shdr.sh_size]);
         }
     }
