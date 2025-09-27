@@ -11,10 +11,16 @@
         .zware = .{
             .url = "git+https://github.com/dasimmet/zware.git#42072c8854bf1405f2e41828a061f811858912fb",
             .hash = "zware-0.0.1-ZA7j6ejoBAClFM-S6HnrzHJye2jnkn478hbAhPAQaUJM",
+            .lazy = true,
         },
         .clap = .{
             .url = "git+https://github.com/Hejsil/zig-clap.git#5289e0753cd274d65344bef1c114284c633536ea",
             .hash = "clap-0.11.0-oBajB-HnAQDPCKYzwF7rO3qDFwRcD39Q0DALlTSz5H7e",
+        },
+        .bytebox = .{
+            .url = "git+https://github.com/rdunnington/bytebox.git#5c8753ba11c394e4d642dddbb459edcd7c97ac26",
+            .hash = "bytebox-0.0.1-SXc2seA2DwAUHbrqTMz_mAQQGqO0EVPYmZ89YZn4KsTi",
+            .lazy = true,
         },
     },
     .paths = .{

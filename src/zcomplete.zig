@@ -280,6 +280,11 @@ pub const Response = struct {
     };
 };
 
+pub const WasmSlice = struct {
+    ptr: usize, // pointer in wasm memory space
+    buf: []u8, // host slice
+};
+
 pub fn streql(a: []const u8, b: []const u8) bool {
     return std.mem.eql(u8, a, b);
 }

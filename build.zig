@@ -98,10 +98,40 @@ pub fn build(b: *std.Build) void {
     });
     exe.root_module.addImport("known-folders", known_folders);
     exe.root_module.addImport("zcomplete", zcomplete);
-    exe.root_module.addImport("zware", b.dependency("zware", .{
-        .target = target,
-        .optimize = optimize,
-    }).module("zware"));
+    const wasmbackend = b.option(
+        enum { zware, bytebox },
+        "wasmbackend",
+        "",
+    ) orelse .zware;
+
+    switch (wasmbackend) {
+        .zware => {
+            const wasmbackend_mod = b.createModule(.{
+                .root_source_file = b.path("src/backend/zware.zig"),
+            });
+            wasmbackend_mod.addImport("zcomplete", zcomplete);
+            if (b.lazyDependency("zware", .{
+                .target = target,
+                .optimize = optimize,
+            })) |zware| {
+                wasmbackend_mod.addImport("zware", zware.module("zware"));
+            }
+            exe.root_module.addImport("wasmbackend", wasmbackend_mod);
+        },
+        .bytebox => {
+            const wasmbackend_mod = b.createModule(.{
+                .root_source_file = b.path("src/backend/bytebox.zig"),
+            });
+            wasmbackend_mod.addImport("zcomplete", zcomplete);
+            if (b.lazyDependency("bytebox", .{
+                .target = target,
+                .optimize = optimize,
+            })) |bytebox| {
+                wasmbackend_mod.addImport("bytebox", bytebox.module("bytebox"));
+            }
+            exe.root_module.addImport("wasmbackend", wasmbackend_mod);
+        },
+    }
     ZComplete.addLazyPath(b, exe, zcomplete, b.path("src/zcomp.zcomplete.zig"));
     b.installArtifact(exe);
 
