@@ -70,6 +70,6 @@ const script_footer =
     \\
     \\    }
     \\}
-    \\INSERT AFTER .rodata;
+    \\INSERT BEFORE .rodata;
     \\
 ;

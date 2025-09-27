@@ -7,7 +7,12 @@ const Store = zware.Store;
 const Module = zware.Module;
 const Instance = zware.Instance;
 
-const Object = @import("elf/Object.zig");
+const elf = struct {
+    pub const main = @import("elf/main.zig");
+    pub const Archive = @import("elf/Archive.zig");
+    pub const Object = @import("elf/Object.zig");
+};
+
 const findProgram = @import("findProgram.zig").findProgram;
 
 pub const usage =
@@ -76,6 +81,7 @@ pub fn help(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
     var stdout_writer = stdout_fd.writer(&stdout_buf);
     const stdout = &stdout_writer.interface;
     try stdout.writeAll(usage);
+    try stdout.flush();
 }
 
 pub fn eval(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
@@ -86,6 +92,7 @@ pub fn eval(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
     var stdout_writer = stdout_fd.writer(&stdout_buf);
     const stdout = &stdout_writer.interface;
     try stdout.writeAll(@embedFile("share/zcomplete.bash"));
+    try stdout.flush();
 }
 
 pub fn extract(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
@@ -265,13 +272,30 @@ pub fn findElfbin(gpa: std.mem.Allocator, file: []const u8, section_name: []cons
     defer arena_alloc.deinit();
     const arena = arena_alloc.allocator();
 
+    std.log.info("iself: {}", .{try elf.Archive.isArchive(file)});
+
     const file_bytes = try std.fs.cwd().readFileAlloc(
         arena,
         file,
         std.math.maxInt(u32),
     );
 
-    var object = Object{
+    // var archive = elf.Archive{
+    //     .arena = arena,
+    //     .data = file_bytes,
+    //     .path = file,
+    //     .opts = .{
+    //         .wide = true,
+    //     },
+    // };
+    // try archive.parse();
+
+    // var it = archive.objects.iterator();
+    // while (it.next()) |obj| {
+    //     std.log.info("o: {s} {any}", .{ section_name, obj });
+    // }
+
+    var object = elf.Object{
         .arena = arena,
         .data = file_bytes,
         .path = file,
@@ -284,16 +308,16 @@ pub fn findElfbin(gpa: std.mem.Allocator, file: []const u8, section_name: []cons
 
     for (object.shdrs.items) |shdr| {
         const sh_name = object.getShString(shdr.sh_name);
-        if (shdr.sh_type == std.elf.SHT_NOTE and std.mem.eql(u8, sh_name, section_name)) {
-            const ofs = shdr.sh_offset;
-            // std.log.info("here: {s} 0x{x} 0x{x} 0x{x} 0x{x} 0x{x}", .{
-            //     sh_name,
-            //     ofs,
-            //     shdr.sh_addr,
-            //     shdr.sh_offset,
-            //     shdr.sh_size,
-            //     shdr.sh_entsize,
-            // });
+        const ofs = shdr.sh_offset;
+        std.log.info("here: {s} 0x{x} 0x{x} 0x{x} 0x{x} 0x{x}", .{
+            sh_name,
+            ofs,
+            shdr.sh_addr,
+            shdr.sh_offset,
+            shdr.sh_size,
+            shdr.sh_entsize,
+        });
+        if (std.mem.eql(u8, sh_name, section_name)) {
             return try gpa.dupe(u8, file_bytes[ofs .. ofs + shdr.sh_size]);
         }
     }

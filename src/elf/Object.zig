@@ -1,11 +1,7 @@
-pub const Options = struct {
-    wide: bool = false,
-};
-
 arena: Allocator,
 data: []const u8,
 path: []const u8,
-opts: Options,
+opts: @import("main.zig").Options,
 
 header: elf.Elf64_Ehdr = undefined,
 shdrs: std.ArrayListUnmanaged(elf.Elf64_Shdr) = .{},
@@ -28,7 +24,7 @@ versymtab: std.ArrayListUnmanaged(elf.Versym) = .{},
 verdef_index: ?u32 = null,
 verdefsyms: std.ArrayListUnmanaged(VersionSym(elf.Verdef)) = .{},
 /// Lookup to verdefsyms.
-verdefsyms_lookup: std.AutoHashMapUnmanaged(u32, u32) = .{},
+verdefsyms_lookup: std.AutoHashMapUnmanaged(elf.VER_NDX, u32) = .{},
 verdefaux: std.ArrayListUnmanaged(VersionSymAux(elf.Verdaux)) = .{},
 
 verneed_index: ?u32 = null,
@@ -202,18 +198,7 @@ pub fn parse(self: *Object) !void {
             var i: u32 = 0;
             var offset: u32 = 0;
             while (i < nsyms) : (i += 1) {
-                const verdefsym: elf.Verdef = if (self.is32Bit()) blk: {
-                    const verdefsym = @as(*align(1) const elf.Verdef, @ptrCast(raw.ptr + offset)).*;
-                    break :blk .{
-                        .version = verdefsym.version,
-                        .flags = verdefsym.flags,
-                        .ndx = verdefsym.ndx,
-                        .cnt = verdefsym.cnt,
-                        .hash = verdefsym.hash,
-                        .aux = verdefsym.aux,
-                        .next = verdefsym.next,
-                    };
-                } else @as(*align(1) const elf.Verdef, @ptrCast(raw.ptr + offset)).*;
+                const verdefsym: elf.Verdef = @as(*align(1) const elf.Verdef, @ptrCast(raw.ptr + offset)).*;
                 self.verdefsyms.appendAssumeCapacity(.{
                     .sym = verdefsym,
                     .off = offset,
@@ -227,19 +212,13 @@ pub fn parse(self: *Object) !void {
             const aux = @as(u32, @intCast(self.verdefaux.items.len));
             verdefsym.aux = aux;
 
-            self.verdefsyms_lookup.putAssumeCapacityNoClobber(@intFromEnum(verdefsym.sym.ndx), @as(u32, @intCast(i)));
+            self.verdefsyms_lookup.putAssumeCapacityNoClobber(verdefsym.sym.ndx, @as(u32, @intCast(i)));
             try self.verdefaux.ensureUnusedCapacity(self.arena, verdefsym.sym.cnt);
 
             var j: u32 = 0;
             var offset: u32 = verdefsym.off + verdefsym.sym.aux;
             while (j < verdefsym.sym.cnt) : (j += 1) {
-                const verdefaux: elf.Verdaux = if (self.is32Bit()) blk: {
-                    const verdefaux = @as(*align(1) const elf.Verdaux, @ptrCast(raw.ptr + offset));
-                    break :blk .{
-                        .name = verdefaux.name,
-                        .next = verdefaux.next,
-                    };
-                } else @as(*align(1) const elf.Verdaux, @ptrCast(raw.ptr + offset)).*;
+                const verdefaux: elf.Verdaux = @as(*align(1) const elf.Verdaux, @ptrCast(raw.ptr + offset)).*;
                 self.verdefaux.appendAssumeCapacity(.{ .off = offset, .sym = verdefaux });
                 offset += verdefaux.next;
             }
@@ -285,16 +264,7 @@ pub fn parse(self: *Object) !void {
             var i: u32 = 0;
             var offset: u32 = verneedsym.off + verneedsym.sym.vn_aux;
             while (i < verneedsym.sym.vn_cnt) : (i += 1) {
-                const verneedaux: elf.Vernaux = if (self.is32Bit()) blk: {
-                    const verneedaux = @as(*align(1) const elf.Vernaux, @ptrCast(raw.ptr + offset));
-                    break :blk .{
-                        .hash = verneedaux.hash,
-                        .flags = verneedaux.flags,
-                        .other = verneedaux.other,
-                        .name = verneedaux.name,
-                        .next = verneedaux.next,
-                    };
-                } else @as(*align(1) const elf.Vernaux, @ptrCast(raw.ptr + offset)).*;
+                const verneedaux: elf.Vernaux = @as(*align(1) const elf.Vernaux, @ptrCast(raw.ptr + offset)).*;
                 self.verneedaux.appendAssumeCapacity(.{ .off = offset, .sym = verneedaux });
                 offset += verneedaux.next;
                 self.verneedsyms_lookup.putAssumeCapacityNoClobber(verneedaux.other, aux + i);
@@ -874,19 +844,19 @@ fn printSymtab(
                 else => {
                     const base_name = getString(strtab, sym.st_name);
                     if (is_dynsym and self.versymtab_index != null) {
-                        const versym = self.versymtab.items[i];
-                        if (self.verdefsyms_lookup.get(versym.VERSION)) |verdef_index| {
+                        const versym = self.versymtab.items[@as(u32, @intCast(i))].VERSION;
+                        if (self.verdefsyms_lookup.get(@enumFromInt(versym))) |verdef_index| {
                             const verdef = self.verdefsyms.items[verdef_index];
                             const verdaux = self.verdefaux.items[verdef.aux];
-                            break :blk try std.fmt.allocPrint(self.arena, "{s}@{s} ({any})", .{
+                            break :blk try std.fmt.allocPrint(self.arena, "{s}@{s} ({d})", .{
                                 base_name,
                                 getString(strtab, verdaux.sym.name),
                                 versym,
                             });
                         }
-                        if (self.verneedsyms_lookup.get(versym.VERSION)) |verneed_index| {
+                        if (self.verneedsyms_lookup.get(versym)) |verneed_index| {
                             const vernaux = self.verneedaux.items[verneed_index];
-                            break :blk try std.fmt.allocPrint(self.arena, "{s}@{s} ({any})", .{
+                            break :blk try std.fmt.allocPrint(self.arena, "{s}@{s} ({d})", .{
                                 base_name,
                                 getString(strtab, vernaux.sym.name),
                                 versym,
@@ -1186,11 +1156,11 @@ pub fn printVersionSections(self: Object, writer: anytype) !void {
 
             for (remaining[0..num]) |versym| {
                 const actual_versym = versym.VERSION;
-                const name = switch (actual_versym) {
-                    @intFromEnum(elf.VER_NDX.LOCAL) => "*local*",
-                    @intFromEnum(elf.VER_NDX.GLOBAL) => "*global*",
+                const name = switch (@as(elf.VER_NDX, @enumFromInt(actual_versym))) {
+                    .LOCAL => "*local*",
+                    .GLOBAL => "*global*",
                     else => blk: {
-                        if (self.verdefsyms_lookup.get(actual_versym)) |verdef_index| {
+                        if (self.verdefsyms_lookup.get(@enumFromInt(actual_versym))) |verdef_index| {
                             const verdef = self.verdefsyms.items[verdef_index];
                             const verauxs = self.verdefaux.items[verdef.aux..][0..verdef.sym.cnt];
                             break :blk getString(self.dynstrtab, verauxs[0].sym.name);
@@ -1349,7 +1319,7 @@ pub fn dumpSectionStr(self: Object, shndx: u32, writer: anytype) !void {
             }
             end += entsize;
             const string = data[start..end];
-            try writer.print("{s}\n", .{std.fmt.fmtSliceEscapeLower(string)});
+            try writer.print("{s}\n", .{string});
             start = end;
         }
     } else {
@@ -1362,7 +1332,7 @@ pub fn dumpSectionStr(self: Object, shndx: u32, writer: anytype) !void {
         while (pos < data.len) : (pos += entsize) {
             try writer.print("  [{x: >6}]  ", .{pos});
             const string = data.ptr[pos..][0..entsize];
-            try writer.print("{s}\n", .{std.fmt.fmtSliceEscapeLower(string)});
+            try writer.print("{s}\n", .{string});
         }
     }
 }

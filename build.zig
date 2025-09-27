@@ -140,6 +140,9 @@ pub const ZComplete = struct {
             zcomplete,
             spec_mod,
         );
+        // need to force llvm use for now:
+        // https://github.com/ziglang/zig/issues/25069
+        exe.use_llvm = true;
         exe.setLinkerScript(zcomplete_ldgen(b, zcomplete, spec_exe.getEmittedBin()));
     }
 
