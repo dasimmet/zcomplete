@@ -93,7 +93,7 @@ pub fn eval(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
 pub fn extract(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
     if (args.len < 2) return error.NotEnoughArguments;
 
-    const bytes = (try findElfbin(
+    const bytes = (try findElfbinSection(
         gpa,
         args[0],
         zcomplete.linker_section_name,
@@ -214,7 +214,7 @@ pub fn complete(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
 pub fn getCompletion(gpa: std.mem.Allocator, raw_cmd: []const u8, cur: usize, args: []const [:0]const u8, debug: bool) !zcomplete.Response {
     const cmd = try findProgram(gpa, &.{raw_cmd}, &.{}, debug);
     defer gpa.free(cmd);
-    const bytes = (try findElfbin(
+    const bytes = (try findElfbinSection(
         gpa,
         cmd,
         zcomplete.linker_section_name,
@@ -246,7 +246,7 @@ pub fn getCompletion(gpa: std.mem.Allocator, raw_cmd: []const u8, cur: usize, ar
     return serialized.parse(gpa);
 }
 
-pub fn findElfbin(gpa: std.mem.Allocator, file: []const u8, section_name: []const u8) !?[]u8 {
+pub fn findElfbinSection(gpa: std.mem.Allocator, file: []const u8, section_name: []const u8) !?[]u8 {
     var arena_alloc = std.heap.ArenaAllocator.init(gpa);
     defer arena_alloc.deinit();
     const arena = arena_alloc.allocator();
