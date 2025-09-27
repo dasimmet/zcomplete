@@ -11,7 +11,7 @@ const elf = struct {
 const findProgram = @import("findProgram.zig").findProgram;
 
 pub const usage =
-    \\zcomp {--help|eval|bash|complete}
+    \\zcomp {--help|eval|bash|extract|complete}
     \\
     \\
 ;
@@ -246,6 +246,7 @@ pub fn getCompletion(gpa: std.mem.Allocator, raw_cmd: []const u8, cur: usize, ar
     return serialized.parse(gpa);
 }
 
+///reads a file and returns elf section. caller owns memory.
 pub fn findElfbinSection(gpa: std.mem.Allocator, file: []const u8, section_name: []const u8) !?[]u8 {
     var arena_alloc = std.heap.ArenaAllocator.init(gpa);
     defer arena_alloc.deinit();
@@ -263,10 +264,7 @@ pub fn findElfbinSection(gpa: std.mem.Allocator, file: []const u8, section_name:
         .path = file,
         .opts = .{},
     };
-    object.parse() catch |err| switch (err) {
-        error.InvalidMagic => @panic("not an ELF file - invalid magic bytes"),
-        else => |e| return e,
-    };
+    try object.parse();
 
     for (object.shdrs.items) |shdr| {
         const sh_name = object.getShString(shdr.sh_name);

@@ -1,28 +1,35 @@
 const std = @import("std");
 const zware = @import("zware");
 const zcomplete = @import("zcomplete");
-store: zware.Store,
-module: zware.Module,
-instance: zware.Instance,
+store: *zware.Store,
+module: *zware.Module,
+instance: *zware.Instance,
 
-pub inline fn init(gpa: std.mem.Allocator, bytes: []const u8) !@This() {
-    var self: @This() = .{
-        .store = zware.Store.init(gpa),
-        .module = undefined,
-        .instance = undefined,
+pub fn init(gpa: std.mem.Allocator, bytes: []const u8) !@This() {
+    const store = try gpa.create(zware.Store);
+    const module = try gpa.create(zware.Module);
+    const instance = try gpa.create(zware.Instance);
+    store.* = zware.Store.init(gpa);
+    module.* = zware.Module.init(gpa, bytes);
+    try module.decode();
+
+    instance.* = zware.Instance.init(gpa, store, module.*);
+    try instance.instantiate();
+    return .{
+        .store = store,
+        .module = module,
+        .instance = instance,
     };
-    self.module = zware.Module.init(gpa, bytes);
-    try self.module.decode();
-
-    self.instance = zware.Instance.init(gpa, &self.store, self.module);
-    try self.instance.instantiate();
-    return self;
 }
 
 pub fn deinit(self: *@This()) void {
+    const allocator = self.instance.alloc;
     self.instance.deinit();
     self.module.deinit();
     self.store.deinit();
+    allocator.destroy(self.instance);
+    allocator.destroy(self.module);
+    allocator.destroy(self.store);
 }
 
 pub fn alloc(self: *@This(), count: usize) !zcomplete.WasmSlice {

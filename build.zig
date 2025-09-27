@@ -126,6 +126,7 @@ pub fn build(b: *std.Build) void {
             if (b.lazyDependency("bytebox", .{
                 .target = target,
                 .optimize = optimize,
+                // .debug_trace = true,
             })) |bytebox| {
                 wasmbackend_mod.addImport("bytebox", bytebox.module("bytebox"));
             }
