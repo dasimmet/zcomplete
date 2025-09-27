@@ -9,8 +9,8 @@
             .hash = "known_folders-0.0.0-Fy-PJtTTAADUOhGKM0sxzG4eMkNQxRvx9e5dfHVyaeA3",
         },
         .zware = .{
-            .url = "git+https://github.com/dasimmet/zware.git#2707d288327217828b0811ea445b65430e617784",
-            .hash = "zware-0.0.1-ZA7j6eXnBADDZ5fH7kovCzYjOWzJpAeLgG6xCSpkko51",
+            .url = "git+https://github.com/dasimmet/zware.git#42072c8854bf1405f2e41828a061f811858912fb",
+            .hash = "zware-0.0.1-ZA7j6ejoBAClFM-S6HnrzHJye2jnkn478hbAhPAQaUJM",
         },
         .clap = .{
             .url = "git+https://github.com/Hejsil/zig-clap.git#5289e0753cd274d65344bef1c114284c633536ea",

@@ -32,7 +32,7 @@ const usage =
 fn fatal(comptime format: []const u8, args: anytype) noreturn {
     ret: {
         const msg = std.fmt.allocPrint(gpa, format ++ "\n", args) catch break :ret;
-        std.io.getStdErr().writeAll(msg) catch {};
+        std.Io.getStdErr().writeAll(msg) catch {};
     }
     std.process.exit(1);
 }
@@ -230,7 +230,7 @@ pub fn main() anyerror!void {
     defer file.close();
     const data = try file.readToEndAlloc(arena, std.math.maxInt(u32));
 
-    const stdout = std.io.getStdOut().writer();
+    const stdout = std.Io.getStdOut().writer();
     if (print_matrix.isUnset()) fatal("no option specified", .{});
 
     if (try Archive.isArchive(fname)) {

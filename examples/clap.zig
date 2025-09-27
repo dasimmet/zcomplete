@@ -43,7 +43,7 @@ pub fn main() !void {
         // not fully consumed. It can then be reused to parse the arguments for subcommands.
         .terminating_positional = 0,
     }) catch |err| {
-        diag.report(std.io.getStdErr().writer(), err) catch {};
+        diag.report(std.Io.getStdErr().writer(), err) catch {};
         return err;
     };
     defer res.deinit();
@@ -81,7 +81,7 @@ fn mathMain(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: M
         .diagnostic = &diag,
         .allocator = gpa,
     }) catch |err| {
-        diag.report(std.io.getStdErr().writer(), err) catch {};
+        diag.report(std.Io.getStdErr().writer(), err) catch {};
         return err;
     };
     defer res.deinit();

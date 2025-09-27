@@ -18,7 +18,7 @@ pub fn isArchive(path: []const u8) !bool {
 }
 
 pub fn parse(self: *Archive) !void {
-    var stream = std.io.fixedBufferStream(self.data);
+    var stream = std.Io.fixedBufferStream(self.data);
     const reader = stream.reader();
     _ = try reader.readBytesNoEof(ARMAG.len);
 
@@ -227,7 +227,7 @@ const Symtab = struct {
     }
 
     fn parse(ar: *Symtab, arena: Allocator, data: []const u8) !void {
-        var stream = std.io.fixedBufferStream(data);
+        var stream = std.Io.fixedBufferStream(data);
         const reader = stream.reader();
 
         const num = try ar.readInt(reader);

@@ -233,7 +233,8 @@ pub const Response = struct {
             },
             else => {
                 res.tag = @intFromEnum(Options.zcomperror);
-                acc.writer(gpa).print(
+                acc.print(
+                    gpa,
                     "serialize msg not implemented: {any}",
                     .{self.*},
                 ) catch @panic("OOM");

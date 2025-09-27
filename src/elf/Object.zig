@@ -34,7 +34,7 @@ verneedsyms_lookup: std.AutoHashMapUnmanaged(u32, u32) = .{},
 verneedaux: std.ArrayListUnmanaged(VersionSymAux(elf.Vernaux)) = .{},
 
 pub fn parse(self: *Object) !void {
-    var stream = std.io.fixedBufferStream(self.data);
+    var stream = std.Io.fixedBufferStream(self.data);
     const reader = stream.reader();
 
     self.header = try reader.readStruct(elf.Elf64_Ehdr);
