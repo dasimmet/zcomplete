@@ -114,34 +114,35 @@ pub fn bash(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
     var stderr_writer = stderr_fd.writer(&stderr_buf);
     const stderr = &stderr_writer.interface;
 
+    const stdout_fd = std.fs.File.stdout();
+    var stdout_buf: [4096]u8 = undefined;
+    var stdout_writer = stdout_fd.writer(&stdout_buf);
+    const stdout = &stdout_writer.interface;
+
     const argv = args[2..];
 
     const log_fd = try openLog(gpa);
     defer log_fd.close();
     var log_w = log_fd.writer(&.{});
     const log = &log_w.interface;
-    try log.print("completing: {s} {s}\n", .{ cmd, argv });
+    try log.print("completing: {s} {f}\n", .{ cmd, std.json.fmt(argv, .{}) });
 
     const parsed = getCompletion(gpa, cmd, cur, argv, false) catch |err| switch (err) {
         else => {
-            try log.writer().print("getCompletion error: {}\n", .{err});
+            try log.print("getCompletion error: {}\n", .{err});
             return;
         },
     };
     defer parsed.deinit(gpa);
 
-    try log.writer().print("response: {any}\n", .{parsed});
+    try log.print("response: {any}\n", .{parsed});
 
-    const stdout_fd = std.fs.File.stdout();
-    var stdout_buf: [4096]u8 = undefined;
-    var stdout_writer = stdout_fd.writer(&stdout_buf);
-    const stdout = &stdout_writer.interface;
     const cur_arg = if (cur == 0 or argv.len < cur) "" else argv[cur - 1];
 
     switch (parsed.options) {
         .unknown => {},
         .fill_options => |opts| {
-            try log.writer().print("opts: {s}\n", .{opts});
+            try log.print("opts: {f}\n", .{std.json.fmt(opts, .{})});
             if (cur > 0) {
                 outer: for (opts) |opt| {
                     if (std.mem.startsWith(u8, opt, cur_arg)) {
@@ -180,7 +181,7 @@ pub fn complete(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
     const cmd = args[0];
     const cur = @max(1, args.len - 1);
 
-    std.debug.print("cmd: {s} cur: {d} args: {s}\n", .{ cmd, cur, args[1..] });
+    std.debug.print("cmd: {s} cur: {d} args: {f}\n", .{ cmd, cur, std.json.fmt(args[1..], .{}) });
 
     const parsed = try getCompletion(gpa, cmd, cur, args[1..], true);
     defer parsed.deinit(gpa);
@@ -189,14 +190,19 @@ pub fn complete(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
         parsed,
     });
 
-    const stderr = std.io.getStdErr().writer();
+    const stderr_fd = std.fs.File.stderr();
+    var stderr_buf: [4096]u8 = undefined;
+    var stderr_writer = stderr_fd.writer(&stderr_buf);
+    const stderr = &stderr_writer.interface;
 
     switch (parsed.options) {
         .fill_options => |opts| {
-            try stderr.print("opt: {s}\n", .{opts});
+            try stderr.print("opt: {f}\n", .{std.json.fmt(opts, .{})});
+            try stderr.flush();
         },
         .zcomperror => |msg| {
             try stderr.print("\nzcomp error:\n{s}\n", .{msg});
+            try stderr.flush();
             std.process.exit(1);
         },
         else => {},

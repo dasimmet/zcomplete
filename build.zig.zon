@@ -9,7 +9,8 @@
             .hash = "known_folders-0.0.0-Fy-PJtTTAADUOhGKM0sxzG4eMkNQxRvx9e5dfHVyaeA3",
         },
         .zware = .{
-            .path = "../zware",
+            .url = "git+https://github.com/dasimmet/zware.git#a1a01b72b54852b7c985d7f4bfaf8f104ccd1165",
+            .hash = "zware-0.0.1-ZA7j6eXnBAAfLASRzV1h5hTzC8lOB50ksj_LAyrQjgKL",
         },
         .clap = .{
             .url = "git+https://github.com/Hejsil/zig-clap.git#5289e0753cd274d65344bef1c114284c633536ea",

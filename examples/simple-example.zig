@@ -23,7 +23,12 @@ pub fn main() !void {
     }
 
     if (std.mem.eql(u8, args[1], "--version")) {
-        try std.io.getStdOut().writeAll("1.0.0\n");
+        const stdout_fd = std.fs.File.stdout();
+        var stdout_buf: [4096]u8 = undefined;
+        var stdout_writer = stdout_fd.writer(&stdout_buf);
+        const stdout = &stdout_writer.interface;
+        try stdout.writeAll("1.0.0\n");
+        try stdout.flush();
         exit(0);
     }
     std.log.err(help_str, .{});
