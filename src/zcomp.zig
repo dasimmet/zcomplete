@@ -226,28 +226,12 @@ pub fn getCompletion(gpa: std.mem.Allocator, raw_cmd: []const u8, cur: usize, ar
     )) orelse return error.ElfSectionNotFound;
     defer gpa.free(bytes);
 
-    var store = Store.init(gpa);
-    defer store.deinit();
-
-    var module = Module.init(gpa, bytes);
-    defer module.deinit();
-    try module.decode();
-
-    var instance = Instance.init(gpa, &store, module);
-    try instance.instantiate();
-    defer instance.deinit();
-
-    // var has_alloc = false;
-    // var has_run = false;
-    // for (instance.module.exports.itemsSlice()) |it| {
-    //     if (it.name == )
-    // }
-
-    const mem = try instance.getMemory(0);
+    var wasm = try Wasm.init(gpa, bytes);
+    defer wasm.deinit();
 
     const size = zcomplete.Args.size(cmd, args);
 
-    const wbuf = try Wasm.alloc(mem, &instance, size);
+    const wbuf = try wasm.alloc(size);
 
     // std.debug.print("buf: {s}\n", .{
     //     wbuf.buf,
@@ -259,7 +243,7 @@ pub fn getCompletion(gpa: std.mem.Allocator, raw_cmd: []const u8, cur: usize, ar
     //     wbuf.buf[@sizeOf(zcomplete.Args)..], wbuf.buf.len, args[1..].len,
     // });
 
-    const serialized = try Wasm.run(mem, &instance, wbuf);
+    const serialized = try wasm.run(wbuf);
 
     // std.debug.print("out: {any}\n", .{
     //     serialized,
@@ -308,27 +292,57 @@ pub fn findElfbin(gpa: std.mem.Allocator, file: []const u8, section_name: []cons
 }
 
 pub const Wasm = struct {
+    backend: Backend,
+    pub const Backend = struct {
+        store: zware.Store,
+        module: zware.Module,
+        instance: zware.Instance,
+    };
+
     pub const Slice = struct {
         ptr: usize, // pointer in wasm memory space
         buf: []u8, // host slice
     };
 
-    pub fn alloc(mem: *zware.Memory, instance: *zware.Instance, count: usize) !Slice {
-        var in: [1]u64 = @splat(count);
-        var out: [1]u64 = @splat(0);
-        try instance.invoke("alloc", &in, &out, .{});
-        return deref(mem, out[0], count);
+    pub inline fn init(gpa: std.mem.Allocator, bytes: []const u8) !@This() {
+        var backend: Backend = .{
+            .store = zware.Store.init(gpa),
+            .module = undefined,
+            .instance = undefined,
+        };
+        backend.module = Module.init(gpa, bytes);
+        try backend.module.decode();
+
+        backend.instance = Instance.init(gpa, &backend.store, backend.module);
+        try backend.instance.instantiate();
+        return .{
+            .backend = backend,
+        };
     }
 
-    pub fn run(mem: *zware.Memory, instance: *zware.Instance, inbuf: Slice) !*zcomplete.Response.Serialized {
+    pub fn deinit(self: *@This()) void {
+        self.backend.instance.deinit();
+        self.backend.module.deinit();
+        self.backend.store.deinit();
+    }
+
+    pub fn alloc(self: *@This(), count: usize) !Slice {
+        var in: [1]u64 = @splat(count);
+        var out: [1]u64 = @splat(0);
+        try self.backend.instance.invoke("alloc", &in, &out, .{});
+        return deref(self, out[0], count);
+    }
+
+    pub fn run(self: *@This(), inbuf: Slice) !*zcomplete.Response.Serialized {
         var in: [1]u64 = @splat(inbuf.ptr);
         var out: [1]u64 = undefined;
-        try instance.invoke("run", &in, &out, .{});
-        const res = try deref(mem, out[0], @sizeOf(zcomplete.Response.Serialized));
+        try self.backend.instance.invoke("run", &in, &out, .{});
+        const res = try deref(self, out[0], @sizeOf(zcomplete.Response.Serialized));
         return @ptrCast(@alignCast(res.buf));
     }
 
-    pub fn deref(mem: *zware.Memory, ptr: usize, len: usize) !Slice {
+    pub fn deref(self: *@This(), ptr: usize, len: usize) !Slice {
+        const mem = try self.backend.instance.getMemory(0);
         return .{
             .ptr = ptr,
             .buf = mem.memory()[ptr .. ptr + len],
