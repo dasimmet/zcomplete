@@ -9,8 +9,8 @@
             .hash = "known_folders-0.0.0-Fy-PJtTTAADUOhGKM0sxzG4eMkNQxRvx9e5dfHVyaeA3",
         },
         .zware = .{
-            .url = "git+https://github.com/dasimmet/zware.git#42072c8854bf1405f2e41828a061f811858912fb",
-            .hash = "zware-0.0.1-ZA7j6ejoBAClFM-S6HnrzHJye2jnkn478hbAhPAQaUJM",
+            .url = "git+https://github.com/dasimmet/zware.git#26811b4ace2da008692a50c57890c947fe3471a0",
+            .hash = "zware-0.0.1-ZA7j6bDqBAASgfb2NNKprRccSGh4vhNeV9M5o0iC5TSa",
             .lazy = true,
         },
         .clap = .{
