@@ -341,12 +341,10 @@ const PrintMatrix = packed struct {
 
     const Int = blk: {
         const bits = @typeInfo(@This()).@"struct".fields.len;
-        break :blk @Type(.{
-            .int = .{
-                .signedness = .unsigned,
-                .bits = bits,
-            },
-        });
+        break :blk @Int(
+            .unsigned,
+            bits,
+        );
     };
 
     fn enableAll() @This() {

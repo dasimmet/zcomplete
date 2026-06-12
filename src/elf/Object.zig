@@ -4,45 +4,49 @@ path: []const u8,
 opts: @import("main.zig").Options,
 
 header: elf.Elf64_Ehdr = undefined,
-shdrs: std.ArrayListUnmanaged(elf.Elf64_Shdr) = .{},
-phdrs: std.ArrayListUnmanaged(elf.Elf64_Phdr) = .{},
+shdrs: std.ArrayListUnmanaged(elf.Elf64_Shdr) = .empty,
+phdrs: std.ArrayListUnmanaged(elf.Elf64_Phdr) = .empty,
 shstrtab: []const u8 = &[0]u8{},
 
 symtab_index: ?u32 = null,
-symtab: std.ArrayListUnmanaged(elf.Elf64_Sym) = .{},
+symtab: std.ArrayListUnmanaged(elf.Elf64_Sym) = .empty,
 strtab: []const u8 = &[0]u8{},
 
 dynamic_index: ?u32 = null,
 
 dynsymtab_index: ?u32 = null,
-dynsymtab: std.ArrayListUnmanaged(elf.Elf64_Sym) = .{},
+dynsymtab: std.ArrayListUnmanaged(elf.Elf64_Sym) = .empty,
 dynstrtab: []const u8 = &[0]u8{},
 
 versymtab_index: ?u32 = null,
-versymtab: std.ArrayListUnmanaged(elf.Versym) = .{},
+versymtab: std.ArrayListUnmanaged(elf.Versym) = .empty,
 
 verdef_index: ?u32 = null,
-verdefsyms: std.ArrayListUnmanaged(VersionSym(elf.Verdef)) = .{},
+verdefsyms: std.ArrayListUnmanaged(VersionSym(elf.Verdef)) = .empty,
 /// Lookup to verdefsyms.
-verdefsyms_lookup: std.AutoHashMapUnmanaged(elf.VER_NDX, u32) = .{},
-verdefaux: std.ArrayListUnmanaged(VersionSymAux(elf.Verdaux)) = .{},
+verdefsyms_lookup: std.AutoHashMapUnmanaged(elf.VER_NDX, u32) = .empty,
+verdefaux: std.ArrayListUnmanaged(VersionSymAux(elf.Verdaux)) = .empty,
 
 verneed_index: ?u32 = null,
-verneedsyms: std.ArrayListUnmanaged(VersionSym(elf.Elf64_Verneed)) = .{},
+verneedsyms: std.ArrayListUnmanaged(VersionSym(elf.Elf64_Verneed)) = .empty,
 /// Lookup to verneedaux.
-verneedsyms_lookup: std.AutoHashMapUnmanaged(u32, u32) = .{},
-verneedaux: std.ArrayListUnmanaged(VersionSymAux(elf.Vernaux)) = .{},
+verneedsyms_lookup: std.AutoHashMapUnmanaged(u32, u32) = .empty,
+verneedaux: std.ArrayListUnmanaged(VersionSymAux(elf.Vernaux)) = .empty,
 
 pub fn parse(self: *Object) !void {
-    var stream = std.Io.fixedBufferStream(self.data);
-    const reader = stream.reader();
+    var stream = std.Io.Reader.fixed(self.data);
+    const reader = &stream;
 
-    self.header = try reader.readStruct(elf.Elf64_Ehdr);
+    const header_buf: []u8 = @ptrCast(&self.header);
+    try reader.readSliceAll(header_buf);
+
     if (!mem.eql(u8, self.header.e_ident[0..4], "\x7fELF")) return error.InvalidMagic;
 
     if (self.is32Bit()) {
-        try stream.seekTo(0);
-        const header = try reader.readStruct(elf.Elf32_Ehdr);
+        stream.seek = 0;
+        var header32_buf: [@sizeOf(elf.Elf32_Ehdr)]u8 = undefined;
+        try reader.readSliceAll(&header32_buf);
+        const header: *elf.Elf32_Ehdr = @ptrCast(@alignCast(&header32_buf));
         @memcpy(&self.header.e_ident, &header.e_ident);
         self.header.e_type = header.e_type;
         self.header.e_machine = header.e_machine;

@@ -3,35 +3,42 @@ const fs = std.fs;
 const mem = std.mem;
 const builtin = @import("builtin");
 
-pub fn findProgram(gpa: std.mem.Allocator, names: []const []const u8, paths: []const []const u8, debug: bool) ![]const u8 {
+pub fn findProgram(init: std.process.Init, names: []const []const u8, paths: []const []const u8, debug: bool) ![]const u8 {
+    const gpa = init.gpa;
+    const io = init.io;
+    const env_map = init.environ_map;
     // arena for intermediate allocations
     var arena_alloc = std.heap.ArenaAllocator.init(gpa);
     defer arena_alloc.deinit();
     const arena = arena_alloc.allocator();
+
+    const cwd = std.Io.Dir.cwd();
 
     for (names) |name| {
         if (fs.path.isAbsolute(name)) {
             return gpa.dupe(u8, name);
         }
         if (builtin.os.tag == .windows or std.mem.startsWith(u8, name, "." ++ fs.path.sep_str)) {
-            if (fs.realpathAlloc(gpa, name)) |p| {
+            if (cwd.realPathFileAlloc(io, name, gpa)) |p| {
                 return p;
             } else |err| switch (err) {
                 error.OutOfMemory => @panic("OOM"),
                 else => {
-                    if (debug) std.log.warn("rp: {s} {}", .{ name, err });
+                    if (debug) std.log.warn("realpath error: {s} {}", .{ name, err });
                 },
             }
         }
     }
 
-    if (std.process.getEnvVarOwned(arena, "PATH") catch null) |PATH| {
+    if (env_map.get("PATH")) |PATH| {
         for (names) |name| {
             var it = mem.tokenizeScalar(u8, PATH, fs.path.delimiter);
             while (it.next()) |p| {
                 return tryFindProgram(
+                    io,
                     gpa,
                     arena,
+                    cwd,
                     try std.fs.path.join(arena, &.{ p, name }),
                     debug,
                 ) orelse continue;
@@ -41,8 +48,10 @@ pub fn findProgram(gpa: std.mem.Allocator, names: []const []const u8, paths: []c
     for (names) |name| {
         for (paths) |p| {
             return tryFindProgram(
+                io,
                 gpa,
                 arena,
+                cwd,
                 try fs.path.join(arena, &.{ p, name }),
                 debug,
             ) orelse continue;
@@ -51,9 +60,16 @@ pub fn findProgram(gpa: std.mem.Allocator, names: []const []const u8, paths: []c
     return error.FileNotFound;
 }
 
-fn tryFindProgram(gpa: std.mem.Allocator, arena: std.mem.Allocator, full_path: []const u8, debug: bool) ?[]const u8 {
+fn tryFindProgram(
+    io: std.Io,
+    gpa: std.mem.Allocator,
+    arena: std.mem.Allocator,
+    cwd: std.Io.Dir,
+    full_path: []const u8,
+    debug: bool,
+) ?[]const u8 {
     if (debug) std.log.warn("fp: {s}", .{full_path});
-    if (fs.realpathAlloc(gpa, full_path)) |p| {
+    if (cwd.realPathFileAlloc(io, full_path, gpa)) |p| {
         return p;
     } else |err| switch (err) {
         error.OutOfMemory => @panic("OOM"),

@@ -1,19 +1,14 @@
 const std = @import("std");
 const zcomplete = @import("zcomplete");
 
-pub fn main() !void {
-    var gpa_alloc = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa_alloc.deinit();
-    const gpa = gpa_alloc.allocator();
+pub fn main(init: std.process.Init) !void {
+    const gpa = init.gpa;
+    const io = init.io;
+    const cwd = std.Io.Dir.cwd();
 
-    const args = try std.process.argsAlloc(gpa);
-    defer std.process.argsFree(gpa, args);
+    const args = try init.minimal.args.toSlice(init.arena.allocator());
 
-    if (std.process.getEnvVarOwned(gpa, "LDGEN_VERBOSE") catch |err| switch (err) {
-        error.EnvironmentVariableNotFound => null,
-        else => return err,
-    }) |ldgen_env| {
-        defer gpa.free(ldgen_env);
+    if (init.environ_map.get("LDGEN_VERBOSE")) |ldgen_env| {
         if (std.mem.eql(u8, ldgen_env, "1")) {
             std.log.info("ldgen args: {f}", .{struct {
                 args: []const []const u8,
@@ -34,13 +29,13 @@ pub fn main() !void {
     const source = args[1];
     const target = args[2];
 
-    const input = try std.fs.cwd().readFileAlloc(gpa, source, std.math.maxInt(u32));
+    const input = try cwd.readFileAlloc(io, source, gpa, .unlimited);
     defer gpa.free(input);
 
-    const out_fd = try std.fs.cwd().createFile(target, .{});
-    defer out_fd.close();
+    const out_fd = try cwd.createFile(io, target, .{});
+    defer out_fd.close(io);
     var out_buf: [4096]u8 = undefined;
-    var out_w = out_fd.writer(&out_buf);
+    var out_w = out_fd.writer(io, &out_buf);
     const out_writer = &out_w.interface;
 
     try out_writer.writeAll(script_header);

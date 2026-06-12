@@ -32,7 +32,7 @@ pub const Command = enum {
 };
 
 pub const CommandFn = struct {
-    pub const Type = *const fn (std.mem.Allocator, []const [:0]const u8) anyerror!void;
+    pub const Type = *const fn (std.process.Init, []const [:0]const u8) anyerror!void;
     pub fn function(self: Command) Type {
         return switch (self) {
             .eval => eval,
@@ -47,89 +47,86 @@ pub const CommandFn = struct {
     }
 };
 
-pub fn main() !void {
-    var gpa_alloc = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa_alloc.deinit();
-    const gpa = gpa_alloc.allocator();
-
-    const args = try std.process.argsAlloc(gpa);
-    defer std.process.argsFree(gpa, args);
+pub fn main(init: std.process.Init) !void {
+    const args = try init.minimal.args.toSlice(init.arena.allocator());
 
     if (args.len < 2) {
-        return help(gpa, &.{});
+        return help(init, &.{});
     }
 
     inline for (std.meta.fields(Command)) |cmd| {
         if (std.mem.eql(u8, cmd.name, args[1])) {
-            return CommandFn.function(@field(Command, cmd.name))(gpa, args[2..]);
+            return CommandFn.function(@field(Command, cmd.name))(init, args[2..]);
         }
     }
 
     return error.UnknownCommand;
 }
 
-pub fn help(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
-    _ = gpa;
+pub fn help(init: std.process.Init, args: []const [:0]const u8) !void {
     _ = args;
-    const stdout_fd = std.fs.File.stdout();
-    var stdout_buf: [4096]u8 = undefined;
-    var stdout_writer = stdout_fd.writer(&stdout_buf);
-    const stdout = &stdout_writer.interface;
-    try stdout.writeAll(usage);
-    try stdout.flush();
+    const stdout_fd = std.Io.File.stdout();
+    try stdout_fd.writeStreamingAll(init.io, usage);
 }
 
-pub fn eval(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
-    _ = gpa;
+pub fn eval(init: std.process.Init, args: []const [:0]const u8) !void {
     _ = args;
-    const stdout_fd = std.fs.File.stdout();
-    var stdout_buf: [4096]u8 = undefined;
-    var stdout_writer = stdout_fd.writer(&stdout_buf);
-    const stdout = &stdout_writer.interface;
-    try stdout.writeAll(@embedFile("share/zcomplete.bash"));
-    try stdout.flush();
+    const stdout_fd = std.Io.File.stdout();
+    try stdout_fd.writeStreamingAll(init.io, @embedFile("share/zcomplete.bash"));
 }
 
-pub fn extract(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
+pub fn extract(init: std.process.Init, args: []const [:0]const u8) !void {
     if (args.len < 2) return error.NotEnoughArguments;
+    const gpa = init.gpa;
+    const io = init.io;
 
     const bytes = (try findElfbinSection(
+        io,
         gpa,
         args[0],
         zcomplete.linker_section_name,
     )) orelse return error.ElfSectionNotFound;
     defer gpa.free(bytes);
 
-    try std.fs.cwd().writeFile(.{
+    try std.Io.Dir.cwd().writeFile(io, .{
         .sub_path = args[1],
         .data = bytes,
     });
 }
 
-pub fn bash(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
+pub fn bash(init: std.process.Init, args: []const [:0]const u8) !void {
     if (args.len < 2) return error.NotEnoughArguments;
+    const gpa = init.gpa;
+    const io = init.io;
+
     const cur = try std.fmt.parseInt(usize, args[0], 10);
     const cmd = args[1];
 
-    const stderr_fd = std.fs.File.stderr();
+    const stderr_fd = std.Io.File.stderr();
     var stderr_buf: [4096]u8 = undefined;
-    var stderr_writer = stderr_fd.writer(&stderr_buf);
+    var stderr_writer = stderr_fd.writer(io, &stderr_buf);
     const stderr = &stderr_writer.interface;
 
-    const stdout_fd = std.fs.File.stdout();
+    const stdout_fd = std.Io.File.stdout();
     var stdout_buf: [4096]u8 = undefined;
-    var stdout_writer = stdout_fd.writer(&stdout_buf);
+    var stdout_writer = stdout_fd.writer(io, &stdout_buf);
     const stdout = &stdout_writer.interface;
 
     const argv = args[2..];
 
-    const log_fd = try openLog(gpa);
-    defer log_fd.close();
-    var log_w = log_fd.writer(&.{});
+    const log_fd = try openLog(init);
+    defer log_fd.close(io);
+    var log_w = log_fd.writer(io, &.{});
     const log = &log_w.interface;
     try log.print("completing: {s} {f}\n", .{ cmd, std.json.fmt(argv, .{}) });
 
-    const parsed = getCompletion(gpa, cmd, cur, argv, false) catch |err| switch (err) {
+    const parsed = getCompletion(
+        init,
+        cmd,
+        cur,
+        argv,
+        false,
+    ) catch |err| switch (err) {
         else => {
             try log.print("getCompletion error: {}\n", .{err});
             return;
@@ -178,23 +175,31 @@ pub fn bash(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
     try stderr.flush();
 }
 
-pub fn complete(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
+pub fn complete(init: std.process.Init, args: []const [:0]const u8) !void {
     if (args.len < 1) return error.NotEnoughArguments;
+    const gpa = init.gpa;
+
     const cmd = args[0];
     const cur = @max(1, args.len - 1);
 
     std.debug.print("cmd: {s} cur: {d} args: {f}\n", .{ cmd, cur, std.json.fmt(args[1..], .{}) });
 
-    const parsed = try getCompletion(gpa, cmd, cur, args[1..], true);
+    const parsed = try getCompletion(
+        init,
+        cmd,
+        cur,
+        args[1..],
+        true,
+    );
     defer parsed.deinit(gpa);
 
     std.debug.print("out: {any}\n", .{
         parsed,
     });
 
-    const stderr_fd = std.fs.File.stderr();
+    const stderr_fd = std.Io.File.stderr();
     var stderr_buf: [4096]u8 = undefined;
-    var stderr_writer = stderr_fd.writer(&stderr_buf);
+    var stderr_writer = stderr_fd.writer(init.io, &stderr_buf);
     const stderr = &stderr_writer.interface;
 
     switch (parsed.options) {
@@ -211,10 +216,18 @@ pub fn complete(gpa: std.mem.Allocator, args: []const [:0]const u8) !void {
     }
 }
 
-pub fn getCompletion(gpa: std.mem.Allocator, raw_cmd: []const u8, cur: usize, args: []const [:0]const u8, debug: bool) !zcomplete.Response {
-    const cmd = try findProgram(gpa, &.{raw_cmd}, &.{}, debug);
+pub fn getCompletion(
+    init: std.process.Init,
+    raw_cmd: []const u8,
+    cur: usize,
+    args: []const [:0]const u8,
+    debug: bool,
+) !zcomplete.Response {
+    const gpa = init.gpa;
+    const cmd = try findProgram(init, &.{raw_cmd}, &.{}, debug);
     defer gpa.free(cmd);
     const bytes = (try findElfbinSection(
+        init.io,
         gpa,
         cmd,
         zcomplete.linker_section_name,
@@ -247,15 +260,16 @@ pub fn getCompletion(gpa: std.mem.Allocator, raw_cmd: []const u8, cur: usize, ar
 }
 
 ///reads a file and returns elf section. caller owns memory.
-pub fn findElfbinSection(gpa: std.mem.Allocator, file: []const u8, section_name: []const u8) !?[]u8 {
+pub fn findElfbinSection(io: std.Io, gpa: std.mem.Allocator, file: []const u8, section_name: []const u8) !?[]u8 {
     var arena_alloc = std.heap.ArenaAllocator.init(gpa);
     defer arena_alloc.deinit();
     const arena = arena_alloc.allocator();
 
-    const file_bytes = try std.fs.cwd().readFileAlloc(
-        arena,
+    const file_bytes = try std.Io.Dir.cwd().readFileAlloc(
+        io,
         file,
-        std.math.maxInt(u32),
+        arena,
+        .unlimited,
     );
 
     var object = elf.Object{
@@ -284,18 +298,32 @@ pub fn findElfbinSection(gpa: std.mem.Allocator, file: []const u8, section_name:
     return null;
 }
 
-pub fn openLog(gpa: std.mem.Allocator) !std.fs.File {
-    const runtime_dir = try known_folders.open(gpa, .cache, .{});
+pub fn openLog(init: std.process.Init) !std.Io.File {
+    const runtime_dir: ?std.Io.Dir = try known_folders.open(
+        init.io,
+        init.arena.allocator(),
+        init.environ_map,
+        .cache,
+        .{},
+    );
+
     if (runtime_dir) |dir| {
-        dir.makeDir("zcomp") catch |err| switch (err) {
+        dir.createDirPath(init.io, "zcomp") catch |err| switch (err) {
             error.PathAlreadyExists => {},
             else => return err,
         };
-        const log_f = try dir.createFile("zcomp/zcomp.log", .{
-            .truncate = false,
-        });
-        try log_f.seekFromEnd(0);
-        return log_f;
+        return dir.openFile(
+            init.io,
+            "zcomp/zcomp.log",
+            .{},
+        ) catch |err| switch (err) {
+            error.FileNotFound => {
+                return dir.createFile(init.io, "zcomp/zcomp.log", .{
+                    .truncate = false,
+                });
+            },
+            else => return err,
+        };
     }
     return error.NoRuntimePathAvailable;
 }

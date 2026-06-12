@@ -2,25 +2,20 @@
     .name = .clapcomplete,
     .version = "0.0.0",
     .fingerprint = 0x9714dfb9c96ac191,
-    .minimum_zig_version = "0.15.1",
+    .minimum_zig_version = "0.16.0",
     .dependencies = .{
         .known_folders = .{
-            .url = "git+https://github.com/ziglibs/known-folders.git#ab5cf5feb936fa3b72c95d3ad0c0c67791937ba1",
-            .hash = "known_folders-0.0.0-Fy-PJtTTAADUOhGKM0sxzG4eMkNQxRvx9e5dfHVyaeA3",
+            .url = "git+https://github.com/ziglibs/known-folders.git#207c34a16e4365edc20d92c7892f962b3bed46e8",
+            .hash = "known_folders-0.0.0-Fy-PJsbKAACbDh9bBxR0MMThxZSS6A9RH4apWphNHY70",
         },
         .zware = .{
-            .url = "git+https://github.com/dasimmet/zware.git#26811b4ace2da008692a50c57890c947fe3471a0",
-            .hash = "zware-0.0.1-ZA7j6bDqBAASgfb2NNKprRccSGh4vhNeV9M5o0iC5TSa",
+            .url = "git+https://github.com/dasimmet/zware.git?ref=zig-0.16.x#da5079a03cdaf16fc255861669cb115d968c1dcb",
+            .hash = "zware-0.0.1-ZA7j6Zs5BQCzHvlg_CEzW1OCDtxNjgtCrHHlPkqGHZYw",
             .lazy = true,
         },
         .clap = .{
-            .url = "git+https://github.com/Hejsil/zig-clap.git#5289e0753cd274d65344bef1c114284c633536ea",
-            .hash = "clap-0.11.0-oBajB-HnAQDPCKYzwF7rO3qDFwRcD39Q0DALlTSz5H7e",
-        },
-        .bytebox = .{
-            .url = "git+https://github.com/rdunnington/bytebox.git#5c8753ba11c394e4d642dddbb459edcd7c97ac26",
-            .hash = "bytebox-0.0.1-SXc2seA2DwAUHbrqTMz_mAQQGqO0EVPYmZ89YZn4KsTi",
-            .lazy = true,
+            .url = "git+https://github.com/Hejsil/zig-clap.git#bf56f229ed5b6c381d90e192234913c6deb3f688",
+            .hash = "clap-0.12.0-oBajB9noAQCFiI2syvjiZf6dENWUBFPWMEzdEPr99ZVx",
         },
     },
     .paths = .{
