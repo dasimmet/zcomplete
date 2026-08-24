@@ -1,11 +1,16 @@
 const std = @import("std");
+const zcomplete = @import("zcomplete");
 const exit = std.process.exit;
 
 pub const std_options = std.Options{
     .log_level = .debug,
 };
 pub const help_str = "usage: simple-example {{--help|--version}}";
+
+const prog linksection(zcomplete.linker_section_name) = @embedFile("zcomplete_bin").*;
+
 pub fn main(init: std.process.Init) !void {
+    _ = prog;
     const args = try init.minimal.args.toSlice(init.arena.allocator());
 
     if (args.len < 2) {

@@ -8,14 +8,24 @@
             .url = "git+https://github.com/ziglibs/known-folders.git#207c34a16e4365edc20d92c7892f962b3bed46e8",
             .hash = "known_folders-0.0.0-Fy-PJsbKAACbDh9bBxR0MMThxZSS6A9RH4apWphNHY70",
         },
-        .zware = .{
-            .url = "git+https://github.com/dasimmet/zware.git?ref=zig-0.16.x#da5079a03cdaf16fc255861669cb115d968c1dcb",
-            .hash = "zware-0.0.1-ZA7j6Zs5BQCzHvlg_CEzW1OCDtxNjgtCrHHlPkqGHZYw",
-            .lazy = true,
-        },
         .clap = .{
             .url = "git+https://github.com/Hejsil/zig-clap.git#bf56f229ed5b6c381d90e192234913c6deb3f688",
             .hash = "clap-0.12.0-oBajB9noAQCFiI2syvjiZf6dENWUBFPWMEzdEPr99ZVx",
+        },
+        .zware = .{
+            .url = "git+https://github.com/dasimmet/zware.git?ref=zig-0.16.x#bdde3fb2f5fed5af94122593ca65890160fd4f75",
+            .hash = "zware-0.0.1-ZA7j6YErBQBTHkO_mFyT6YACkSVY4etxvLmuK-LUN_W6",
+            .lazy = true,
+        },
+        .wasmz = .{
+            .url = "git+https://github.com/Ray-D-Song/wasmz#f3c2b3aa1eebb0bbbcbc90400205e7c826a38acc",
+            .hash = "wasmz-0.1.3-5DVXdnH0LABXRYtzxdYOy5wNFtTpO3Y2Tq4jGZm6rno8",
+            .lazy = true,
+        },
+        .zwasm = .{
+            .url = "git+https://github.com/zwasm/zwasm#5e21b340d44d4869d0c1a3b1d8bb26af1b770fec",
+            .hash = "zwasm-2.5.0-FT1FvwVNlQBaZbzN0v7TQoK1nm_6uvKhcTlCsf5SkwxO",
+            .lazy = true,
         },
     },
     .paths = .{

@@ -43,49 +43,75 @@ pub fn build(b: *std.Build) void {
         }
     }
 
-    const zcomplete = b.addModule("zcomplete", .{
-        .root_source_file = b.path("src/zcomplete.zig"),
-    });
-    if (backend_module) |bm| {
-        zcomplete.addImport("backend", bm);
-    }
     const zcomplete_options = b.addOptions();
     zcomplete_options.addOption(Backend, "backend", backend);
     zcomplete_options.addOption(bool, "wasm_mode", false);
-    zcomplete.addOptions("options", zcomplete_options);
 
-    const simple_exe = b.addExecutable(.{ .name = "simple-example", .root_module = b.createModule(.{
-        .root_source_file = b.path("examples/simple-example.zig"),
-        .target = target,
-        .optimize = optimize,
-    }) });
-    ZComplete.addLazyPath(b, simple_exe, zcomplete, b.path("examples/simple-example.zcomplete.zig"));
+    const zcomplete = b.addModule("zcomplete", .{
+        .root_source_file = b.path("src/root.zig"),
+        .imports = if (backend_module) |bm| &.{
+            .{ .name = "backend", .module = bm },
+            .{ .name = "options", .module = zcomplete_options.createModule() },
+        } else &.{
+            .{ .name = "options", .module = zcomplete_options.createModule() },
+        },
+    });
+
+    const simple_exe = b.addExecutable(.{
+        .name = "simple-example",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/simple-example.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "zcomplete", .module = zcomplete },
+                .{
+                    .name = "zcomplete_bin",
+                    .module = ZComplete.builtinModule(
+                        b,
+                        "simples",
+                        zcomplete,
+                        b.path("examples/simple-example.zcomplete.zig"),
+                    ),
+                },
+            },
+        }),
+    });
+    // ZComplete.addLazyPath(b, simple_exe, zcomplete, b.path("examples/simple-example.zcomplete.zig"));
     const example_step = b.step("example", "build an example with embedded completion");
     example_step.dependOn(&b.addInstallArtifact(simple_exe, .{}).step);
 
-    const example = switch (backend) {
-        .clap => blk: {
-            const clap_exe = b.addExecutable(.{
-                .name = "clap-example",
-                .root_module = b.createModule(.{
-                    .root_source_file = b.path("examples/clap.zig"),
-                    .target = target,
-                    .optimize = optimize,
-                }),
-            });
-            clap_exe.root_module.addImport("clap", backend_module.?);
-            {
-                const clap_exe_complete = b.addModule("clap-example-zcomplete", .{
-                    .root_source_file = b.path("examples/clap.zcomplete.zig"),
-                });
-                clap_exe_complete.addImport("clap", backend_module.?);
-                clap_exe_complete.addImport("zcomplete", zcomplete);
-                ZComplete.addModule(b, clap_exe, zcomplete, clap_exe_complete);
-            }
-            example_step.dependOn(&b.addInstallArtifact(clap_exe, .{}).step);
-            break :blk clap_exe;
-        },
-        .no_backend => simple_exe,
+    const wasmbackend = b.option(
+        enum { zware, wasmz },
+        "wasmbackend",
+        "",
+    ) orelse .zware;
+
+    const wasmbackend_mod = switch (wasmbackend) {
+        .zware => b.createModule(.{
+            .root_source_file = b.path("src/backend/zware.zig"),
+            .imports = if (b.lazyDependency("zware", .{
+                .target = target,
+                .optimize = optimize,
+            })) |zware| &.{
+                .{ .name = "zcomplete", .module = zcomplete },
+                .{ .name = "zware", .module = zware.module("zware") },
+            } else &.{
+                .{ .name = "zcomplete", .module = zcomplete },
+            },
+        }),
+        .wasmz => b.createModule(.{
+            .root_source_file = b.path("src/backend/wasmz.zig"),
+            .imports = if (b.lazyDependency("wasmz", .{
+                .target = target,
+                .optimize = optimize,
+            })) |wasmz| &.{
+                .{ .name = "zcomplete", .module = zcomplete },
+                .{ .name = "wasmz", .module = wasmz.module("wasmz") },
+            } else &.{
+                .{ .name = "zcomplete", .module = zcomplete },
+            },
+        }),
     };
 
     const exe = b.addExecutable(.{
@@ -94,46 +120,23 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/zcomp.zig"),
             .target = target,
             .optimize = optimize,
+            .imports = &.{
+                .{ .name = "known-folders", .module = known_folders },
+                .{ .name = "zcomplete", .module = zcomplete },
+                .{ .name = "wasmbackend", .module = wasmbackend_mod },
+                .{
+                    .name = "zcomplete_bin",
+                    .module = ZComplete.builtinModule(
+                        b,
+                        "zcomp-zcomplete",
+                        zcomplete,
+                        b.path("src/zcomp.zcomplete.zig"),
+                    ),
+                },
+            },
         }),
     });
-    exe.root_module.addImport("known-folders", known_folders);
-    exe.root_module.addImport("zcomplete", zcomplete);
-    const wasmbackend = b.option(
-        enum { zware, bytebox },
-        "wasmbackend",
-        "",
-    ) orelse .zware;
-
-    switch (wasmbackend) {
-        .zware => {
-            const wasmbackend_mod = b.createModule(.{
-                .root_source_file = b.path("src/backend/zware.zig"),
-            });
-            wasmbackend_mod.addImport("zcomplete", zcomplete);
-            if (b.lazyDependency("zware", .{
-                .target = target,
-                .optimize = optimize,
-            })) |zware| {
-                wasmbackend_mod.addImport("zware", zware.module("zware"));
-            }
-            exe.root_module.addImport("wasmbackend", wasmbackend_mod);
-        },
-        .bytebox => {
-            const wasmbackend_mod = b.createModule(.{
-                .root_source_file = b.path("src/backend/bytebox.zig"),
-            });
-            wasmbackend_mod.addImport("zcomplete", zcomplete);
-            if (b.lazyDependency("bytebox", .{
-                .target = target,
-                .optimize = optimize,
-                // .debug_trace = true,
-            })) |bytebox| {
-                wasmbackend_mod.addImport("bytebox", bytebox.module("bytebox"));
-            }
-            exe.root_module.addImport("wasmbackend", wasmbackend_mod);
-        },
-    }
-    ZComplete.addLazyPath(b, exe, zcomplete, b.path("src/zcomp.zcomplete.zig"));
+    exe.use_llvm = true;
     b.installArtifact(exe);
 
     const add_completion = b.addInstallFile(
@@ -148,33 +151,60 @@ pub fn build(b: *std.Build) void {
         run_cmd.addArgs(args);
     } else {
         run_cmd.addArg("complete");
-        run_cmd.addFileArg(example.getEmittedBin());
+        run_cmd.addFileArg(simple_exe.getEmittedBin());
         run_cmd.addArg("--");
     }
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
+
+    const zcomp_zcomplete_test = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/zcomp.zcomplete.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "zcomplete", .module = zcomplete },
+                .{ .name = "known-folders", .module = known_folders },
+                .{ .name = "wasmbackend", .module = wasmbackend_mod },
+                .{
+                    .name = "zcomplete_bin",
+                    .module = ZComplete.builtinModule(
+                        b,
+                        "zcomp-zcomplete",
+                        zcomplete,
+                        b.path("src/zcomp.zcomplete.zig"),
+                    ),
+                },
+            },
+        }),
+    });
+    const run_test = b.addRunArtifact(zcomp_zcomplete_test);
+    const test_step = b.step("test", "Run unit tests");
+    test_step.dependOn(&run_test.step);
 }
 
 pub const ZComplete = struct {
     pub fn addLazyPath(b: *std.Build, exe: *std.Build.Step.Compile, zcomplete: *std.Build.Module, specfile: LazyPath) void {
-        const spec_mod = b.addModule("specfile", .{
-            .root_source_file = specfile,
-        });
-        spec_mod.addImport("zcomplete", zcomplete);
-        return addModule(b, exe, zcomplete, spec_mod);
+        exe.root_module.addImport(
+            "zcomplete_bin",
+            builtinModule(b, b.fmt("{s}-zcomplete", .{exe.name}), zcomplete, specfile),
+        );
     }
 
-    pub fn addModule(b: *std.Build, exe: *std.Build.Step.Compile, zcomplete: *std.Build.Module, spec_mod: *std.Build.Module) void {
-        const spec_exe = buildExe(
-            b,
-            b.fmt("{s}-zcomplete", .{exe.name}),
-            zcomplete,
-            spec_mod,
-        );
-        // need to force llvm use for now:
-        // https://github.com/ziglang/zig/issues/25069
-        exe.use_llvm = true;
-        exe.setLinkerScript(zcomplete_ldgen(b, zcomplete, spec_exe.getEmittedBin()));
+    pub fn builtinModule(b: *std.Build, name: []const u8, zcomplete: *std.Build.Module, specfile: LazyPath) *std.Build.Module {
+        return builtinModuleFromMod(b, name, zcomplete, b.createModule(.{
+            .root_source_file = specfile,
+            .imports = &.{
+                .{ .name = "zcomplete", .module = zcomplete },
+            },
+        }));
+    }
+
+    pub fn builtinModuleFromMod(b: *std.Build, name: []const u8, zcomplete: *std.Build.Module, spec_mod: *std.Build.Module) *std.Build.Module {
+        const exe = buildExe(b, name, zcomplete, spec_mod);
+        return b.createModule(.{
+            .root_source_file = exe.getEmittedBin(),
+        });
     }
 
     pub fn buildExe(b: *std.Build, name: []const u8, zcomplete: *std.Build.Module, spec_mod: *std.Build.Module) *std.Build.Step.Compile {
@@ -191,31 +221,15 @@ pub const ZComplete = struct {
                     },
                 }),
                 .optimize = .ReleaseSmall,
+                .imports = &.{
+                    .{ .name = "specfile", .module = spec_mod },
+                    .{ .name = "zcomplete", .module = zcomplete },
+                },
             }),
         });
         exe.rdynamic = true;
         exe.entry = .disabled;
-        exe.root_module.addImport("specfile", spec_mod);
-        exe.root_module.addImport("zcomplete", zcomplete);
 
         return exe;
     }
 };
-
-pub fn zcomplete_ldgen(b: *std.Build, zcomplete: *std.Build.Module, src_exe: LazyPath) LazyPath {
-    const ldgen = b.addExecutable(.{
-        .name = "ldgen",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/ldgen.zig"),
-            .target = b.graph.host,
-            .optimize = .Debug,
-        }),
-    });
-    ldgen.root_module.addImport("zcomplete", zcomplete);
-    const run = b.addRunArtifact(ldgen);
-    if (b.verbose) {
-        run.setEnvironmentVariable("LDGEN_VERBOSE", "1");
-    }
-    run.addFileArg(src_exe);
-    return run.addOutputFileArg("ldgen.ld");
-}

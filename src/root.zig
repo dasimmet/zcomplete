@@ -1,6 +1,6 @@
 pub const options = @import("options");
 const std = @import("std");
-pub const linker_section_name = "zcomplete.wasm";
+pub const linker_section_name = ".zcomplete";
 pub const api_version = 1;
 
 pub const AutoComplete = struct {

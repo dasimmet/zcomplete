@@ -3,8 +3,7 @@ const fs = std.fs;
 const mem = std.mem;
 const builtin = @import("builtin");
 
-pub fn findProgram(init: std.process.Init, names: []const []const u8, paths: []const []const u8, debug: bool) ![]const u8 {
-    const gpa = init.gpa;
+pub fn findProgram(init: std.process.Init, names: []const []const u8, paths: []const []const u8, debug: bool) ![:0]const u8 {
     const io = init.io;
     const env_map = init.environ_map;
     // arena for intermediate allocations
@@ -16,9 +15,8 @@ pub fn findProgram(init: std.process.Init, names: []const []const u8, paths: []c
 
     for (names) |name| {
         if (fs.path.isAbsolute(name)) {
-            return gpa.dupe(u8, name);
+            return gpa.dupeZ(u8, name);
         }
-        if (builtin.os.tag == .windows or std.mem.startsWith(u8, name, "." ++ fs.path.sep_str)) {
             if (cwd.realPathFileAlloc(io, name, gpa)) |p| {
                 return p;
             } else |err| switch (err) {
@@ -67,10 +65,9 @@ fn tryFindProgram(
     cwd: std.Io.Dir,
     full_path: []const u8,
     debug: bool,
-) ?[]const u8 {
+) ?[:0]const u8 {
     if (debug) std.log.warn("fp: {s}", .{full_path});
     if (cwd.realPathFileAlloc(io, full_path, gpa)) |p| {
-        return p;
     } else |err| switch (err) {
         error.OutOfMemory => @panic("OOM"),
         else => {},

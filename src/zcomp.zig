@@ -47,7 +47,10 @@ pub const CommandFn = struct {
     }
 };
 
+const prog linksection(zcomplete.linker_section_name) = @embedFile("zcomplete_bin").*;
+
 pub fn main(init: std.process.Init) !void {
+    _ = prog;
     const args = try init.minimal.args.toSlice(init.arena.allocator());
 
     if (args.len < 2) {
@@ -291,7 +294,7 @@ pub fn findElfbinSection(io: std.Io, gpa: std.mem.Allocator, file: []const u8, s
         //     shdr.sh_size,
         //     shdr.sh_entsize,
         // });
-        if (shdr.sh_type == std.elf.SHT_NOTE and std.mem.eql(u8, sh_name, section_name)) {
+        if (std.mem.eql(u8, sh_name, section_name)) {
             return try gpa.dupe(u8, file_bytes[ofs .. ofs + shdr.sh_size]);
         }
     }

@@ -1,6 +1,7 @@
 const std = @import("std");
 const zware = @import("zware");
 const zcomplete = @import("zcomplete");
+
 store: *zware.Store,
 module: *zware.Module,
 instance: *zware.Instance,
