@@ -5,13 +5,9 @@ pub const std_options = std.Options{
     .log_level = .debug,
 };
 pub const help_str = "usage: simple-example {{--help|--version}}";
-pub fn main() !void {
-    var arena_alloc = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    const arena = arena_alloc.allocator();
-    defer arena_alloc.deinit();
+pub fn main(init: std.process.Init) !void {
+    const args = try init.minimal.args.toSlice(init.arena.allocator());
 
-    const args = try std.process.argsAlloc(arena);
-    defer std.process.argsFree(arena, args);
     if (args.len < 2) {
         std.log.err(help_str, .{});
         exit(1);
@@ -23,9 +19,9 @@ pub fn main() !void {
     }
 
     if (std.mem.eql(u8, args[1], "--version")) {
-        const stdout_fd = std.fs.File.stdout();
+        const stdout_fd = std.Io.File.stdout();
         var stdout_buf: [4096]u8 = undefined;
-        var stdout_writer = stdout_fd.writer(&stdout_buf);
+        var stdout_writer = stdout_fd.writer(init.io, &stdout_buf);
         const stdout = &stdout_writer.interface;
         try stdout.writeAll("1.0.0\n");
         try stdout.flush();
