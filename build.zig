@@ -179,8 +179,17 @@ pub fn build(b: *std.Build) void {
         }),
     });
     const run_test = b.addRunArtifact(zcomp_zcomplete_test);
+
+    const run_complete_self = b.addRunArtifact(exe);
+    run_complete_self.addArg("complete");
+    run_complete_self.addFileArg(exe.getEmittedBin());
+
+    const test_complete_step = b.step("test-complete", "Run zcomp complete on itself");
+    test_complete_step.dependOn(&run_complete_self.step);
+
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_test.step);
+    test_step.dependOn(&run_complete_self.step);
 }
 
 pub const ZComplete = struct {
@@ -229,6 +238,7 @@ pub const ZComplete = struct {
         });
         exe.rdynamic = true;
         exe.entry = .disabled;
+        exe.use_llvm = true;
 
         return exe;
     }

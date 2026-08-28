@@ -8,13 +8,23 @@ instance: *zware.Instance,
 
 pub fn init(gpa: std.mem.Allocator, bytes: []const u8) !@This() {
     const store = try gpa.create(zware.Store);
+    errdefer gpa.destroy(store);
     const module = try gpa.create(zware.Module);
+    errdefer gpa.destroy(module);
     const instance = try gpa.create(zware.Instance);
+    errdefer gpa.destroy(instance);
+
     store.* = zware.Store.init(gpa);
+    errdefer store.deinit();
+
     module.* = zware.Module.init(gpa, bytes);
+    errdefer module.deinit();
+
     try module.decode();
 
     instance.* = zware.Instance.init(gpa, store, module.*);
+    errdefer instance.deinit();
+
     try instance.instantiate();
     return .{
         .store = store,
@@ -48,7 +58,7 @@ pub fn run(self: *@This(), inbuf: zcomplete.WasmSlice) !*zcomplete.Response.Seri
     return @ptrCast(@alignCast(res.buf));
 }
 
-pub fn deref(self: *@This(), ptr: usize, len: usize) !zcomplete.WasmSlice {
+fn deref(self: *@This(), ptr: usize, len: usize) !zcomplete.WasmSlice {
     const mem = try self.instance.getMemory(0);
     return .{
         .ptr = ptr,

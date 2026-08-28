@@ -7,7 +7,8 @@ pub const std_options = std.Options{
 };
 pub const help_str = "usage: simple-example {{--help|--version}}";
 
-const prog linksection(zcomplete.linker_section_name) = @embedFile("zcomplete_bin").*;
+const embedded_bin = @embedFile("zcomplete_bin");
+const prog: [embedded_bin.len]u8 linksection(zcomplete.linker_section_name) = embedded_bin[0..embedded_bin.len].*;
 
 pub fn main(init: std.process.Init) !void {
     _ = prog;
