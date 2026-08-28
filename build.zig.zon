@@ -9,7 +9,7 @@
             .hash = "known_folders-0.0.0-Fy-PJsbKAACbDh9bBxR0MMThxZSS6A9RH4apWphNHY70",
         },
         .zware = .{
-            .url = "git+https://github.com/dasimmet/zware.git?ref=zig-0.16.x#bdde3fb2f5fed5af94122593ca65890160fd4f75",
+            .url = "git+https://github.com/malcolmstill/zware#83842277031abf5e934e72f2122da55ec6fa68c8",
             .hash = "zware-0.0.1-ZA7j6YErBQBTHkO_mFyT6YACkSVY4etxvLmuK-LUN_W6",
             .lazy = true,
         },
