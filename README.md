@@ -9,9 +9,9 @@ Inspired by Python's [argcomplete](https://pypi.org/project/argcomplete/), `zcom
 ## How It Works
 
 1. **Standalone WASM Specification**: Your CLI's completion logic is compiled into a lightweight WebAssembly module (`wasm32-freestanding-none`).
-2. **Embedded in ELF Binary**: The compiled `.wasm` is embedded directly into the binary's `.zcomplete` ELF section using Zig's `linksection` attribute (no separate files or runtime overhead).
+2. **Embedded in Native Executables**: The compiled `.wasm` is embedded directly into the executable's dedicated linksection (`.zcomplete` on ELF/PE-COFF, `__DATA,__zcomplete` on Mach-O) using Zig's `linksection` attribute with zero runtime overhead.
 3. **Single Generic Runner (`zcomp`)**: When you type a command and hit `<TAB>`, Bash calls `zcomp`, which:
-   - Reads the `.zcomplete` section from the executable.
+   - Reads the embedded `.zcomplete` section directly from ELF, Mach-O (macOS), or PE/COFF (Windows) executables.
    - Executes the completion function inside a fast, isolated WebAssembly sandbox ([zware](https://github.com/dasimmet/zware), [wasmz](https://github.com/Ray-D-Song/wasmz), or [zwasm](https://github.com/zwasm/zwasm)).
    - Resolves subcommands, flags, values, integer ranges, or filesystem paths.
    - Outputs suggestions directly to Bash.

@@ -269,9 +269,98 @@ pub fn build(b: *std.Build) void {
     run_bash_simple_zig.addArg("src/");
     test_complete_step.dependOn(&run_bash_simple_zig.step);
 
+    // 14. cross-platform tests: Windows PE executable extraction & completion
+    const win_target = b.resolveTargetQuery(.{
+        .cpu_arch = .x86_64,
+        .os_tag = .windows,
+    });
+    const simple_exe_win = b.addExecutable(.{
+        .name = "simple-example-win",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/simple-example.zig"),
+            .target = win_target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "zcomplete", .module = zcomplete },
+                .{
+                    .name = "zcomplete_bin",
+                    .module = ZComplete.builtinModule(
+                        b,
+                        "simple-example-zcomplete-win",
+                        zcomplete,
+                        b.path("examples/simple-example.zcomplete.zig"),
+                    ),
+                },
+            },
+        }),
+    });
+    simple_exe_win.use_llvm = true;
+
+    const run_complete_win = b.addRunArtifact(exe);
+    run_complete_win.addArg("complete");
+    run_complete_win.addFileArg(simple_exe_win.getEmittedBin());
+    run_complete_win.addArg("");
+    test_complete_step.dependOn(&run_complete_win.step);
+
+    const run_extract_win = b.addRunArtifact(exe);
+    run_extract_win.addArg("extract");
+    run_extract_win.addFileArg(simple_exe_win.getEmittedBin());
+    const win_extracted = run_extract_win.addOutputFileArg("win_extracted.wasm");
+    test_complete_step.dependOn(&run_extract_win.step);
+    _ = win_extracted;
+
+    // 15. cross-platform tests: macOS Mach-O executable extraction & completion
+    const macos_target = b.resolveTargetQuery(.{
+        .cpu_arch = .aarch64,
+        .os_tag = .macos,
+    });
+    const simple_exe_macos = b.addExecutable(.{
+        .name = "simple-example-macos",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/simple-example.zig"),
+            .target = macos_target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "zcomplete", .module = zcomplete },
+                .{
+                    .name = "zcomplete_bin",
+                    .module = ZComplete.builtinModule(
+                        b,
+                        "simple-example-zcomplete-macos",
+                        zcomplete,
+                        b.path("examples/simple-example.zcomplete.zig"),
+                    ),
+                },
+            },
+        }),
+    });
+
+    const run_complete_macos = b.addRunArtifact(exe);
+    run_complete_macos.addArg("complete");
+    run_complete_macos.addFileArg(simple_exe_macos.getEmittedBin());
+    run_complete_macos.addArg("");
+    test_complete_step.dependOn(&run_complete_macos.step);
+
+    const run_extract_macos = b.addRunArtifact(exe);
+    run_extract_macos.addArg("extract");
+    run_extract_macos.addFileArg(simple_exe_macos.getEmittedBin());
+    const macos_extracted = run_extract_macos.addOutputFileArg("macos_extracted.wasm");
+    test_complete_step.dependOn(&run_extract_macos.step);
+    _ = macos_extracted;
+
+    const section_test = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/section.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    const run_section_test = b.addRunArtifact(section_test);
+
     const test_step = b.step("test", "Run unit tests and completion tests");
     test_step.dependOn(&run_test.step);
     test_step.dependOn(&run_simple_test.step);
+    test_step.dependOn(&run_section_test.step);
     test_step.dependOn(test_complete_step);
 }
 

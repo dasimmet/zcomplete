@@ -4,7 +4,8 @@
 
 pub const options = @import("options");
 const std = @import("std");
-pub const linker_section_name = ".zcomplete";
+const builtin = @import("builtin");
+pub const linker_section_name = if (builtin.target.os.tag.isDarwin()) "__DATA,__zcomplete" else ".zcomplete";
 pub const api_version = 1;
 
 pub const AutoComplete = struct {

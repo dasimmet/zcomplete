@@ -6,11 +6,7 @@ const std = @import("std");
 const zcomplete = @import("zcomplete");
 const known_folders = @import("known-folders");
 const WasmBackend = @import("wasmbackend");
-const elf = struct {
-    pub const main = @import("elf/main.zig");
-    pub const Archive = @import("elf/Archive.zig");
-    pub const Object = @import("elf/Object.zig");
-};
+const section = @import("section.zig");
 
 const findProgram = @import("findProgram.zig").findProgram;
 
@@ -86,7 +82,7 @@ fn extract(init: std.process.Init, args: []const [:0]const u8) !void {
     const gpa = init.gpa;
     const io = init.io;
 
-    const bytes = (try findElfbinSection(
+    const bytes = (try section.extractSectionFromFile(
         io,
         gpa,
         args[0],
@@ -340,7 +336,7 @@ fn getCompletion(
     const gpa = init.gpa;
     const cmd = try findProgram(init, &.{raw_cmd}, &.{}, debug);
     defer gpa.free(cmd);
-    const bytes = (try findElfbinSection(
+    const bytes = (try section.extractSectionFromFile(
         init.io,
         gpa,
         cmd,
@@ -371,45 +367,6 @@ fn getCompletion(
     //     serialized,
     // });
     return serialized.parse(gpa);
-}
-
-///reads a file and returns elf section. caller owns memory.
-fn findElfbinSection(io: std.Io, gpa: std.mem.Allocator, file: []const u8, section_name: []const u8) !?[]u8 {
-    var arena_alloc = std.heap.ArenaAllocator.init(gpa);
-    defer arena_alloc.deinit();
-    const arena = arena_alloc.allocator();
-
-    const file_bytes = try std.Io.Dir.cwd().readFileAlloc(
-        io,
-        file,
-        arena,
-        .unlimited,
-    );
-
-    var object = elf.Object{
-        .arena = arena,
-        .data = file_bytes,
-        .path = file,
-        .opts = .{},
-    };
-    try object.parse();
-
-    for (object.shdrs.items) |shdr| {
-        const sh_name = object.getShString(shdr.sh_name);
-        const ofs = shdr.sh_offset;
-        // std.log.info("here: {s} 0x{x} 0x{x} 0x{x} 0x{x} 0x{x}", .{
-        //     sh_name,
-        //     ofs,
-        //     shdr.sh_addr,
-        //     shdr.sh_offset,
-        //     shdr.sh_size,
-        //     shdr.sh_entsize,
-        // });
-        if (std.mem.eql(u8, sh_name, section_name)) {
-            return try gpa.dupe(u8, file_bytes[ofs .. ofs + shdr.sh_size]);
-        }
-    }
-    return null;
 }
 
 fn openLog(init: std.process.Init) !std.Io.File {
