@@ -1,3 +1,5 @@
+//! Utility for generating GNU linker scripts to embed raw binary files into dedicated ELF sections.
+
 const std = @import("std");
 const zcomplete = @import("zcomplete");
 

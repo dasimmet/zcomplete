@@ -12,7 +12,7 @@ Inspired by Python's [argcomplete](https://pypi.org/project/argcomplete/), `zcom
 2. **Embedded in ELF Binary**: The compiled `.wasm` is embedded directly into the binary's `.zcomplete` ELF section using Zig's `linksection` attribute (no separate files or runtime overhead).
 3. **Single Generic Runner (`zcomp`)**: When you type a command and hit `<TAB>`, Bash calls `zcomp`, which:
    - Reads the `.zcomplete` section from the executable.
-   - Executes the completion function inside a fast, isolated WebAssembly sandbox ([zware](https://github.com/dasimmet/zware) or [wasmz](https://github.com/Ray-D-Song/wasmz)).
+   - Executes the completion function inside a fast, isolated WebAssembly sandbox ([zware](https://github.com/dasimmet/zware), [wasmz](https://github.com/Ray-D-Song/wasmz), or [zwasm](https://github.com/zwasm/zwasm)).
    - Resolves subcommands, flags, values, integer ranges, or filesystem paths.
    - Outputs suggestions directly to Bash.
 
@@ -251,12 +251,12 @@ pub fn zcomp(a: *zcomplete.AutoComplete) !void {
 
 The `zcomp` runner provides tools for inspecting, testing, and debugging completions:
 
-| Command | Description |
-|---|---|
-| `zcomp complete <binary> [args...]` | Inspect completions for a binary at the given argument position. |
-| `zcomp bash <cur_index> <command> [args...]` | Generate Bash completion candidate lines. |
-| `zcomp extract <binary> [output.wasm]` | Extract the embedded `.zcomplete` WASM module from an ELF binary. |
-| `zcomp eval` | Output the Bash hook snippet for `eval "$(zcomp eval)"`. |
+| Command                                      | Description                                                       |
+| -------------------------------------------- | ----------------------------------------------------------------- |
+| `zcomp complete <binary> [args...]`          | Inspect completions for a binary at the given argument position.  |
+| `zcomp bash <cur_index> <command> [args...]` | Generate Bash completion candidate lines.                         |
+| `zcomp extract <binary> [output.wasm]`       | Extract the embedded `.zcomplete` WASM module from an ELF binary. |
+| `zcomp eval`                                 | Output the Bash hook snippet for `eval "$(zcomp eval)"`.          |
 
 ### Examples
 
@@ -286,6 +286,9 @@ zig build test-complete
 
 # Run end-to-end completion tests with wasmz engine
 zig build test-complete -Dwasmbackend=wasmz
+
+# Run end-to-end completion tests with zwasm engine
+zig build test-complete -Dwasmbackend=zwasm
 
 # Build example binary
 zig build example

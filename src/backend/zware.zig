@@ -1,3 +1,6 @@
+//! WebAssembly execution backend powered by the `zware` runtime.
+//! Provides sandboxed execution of embedded .zcomplete WASM modules.
+
 const std = @import("std");
 const zware = @import("zware");
 const zcomplete = @import("zcomplete");

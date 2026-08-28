@@ -1,3 +1,6 @@
+//! Auto-completion specification for the `zcomp` CLI tool.
+//! Defines subcommands (`eval`, `extract`, `bash`, `complete`, `help`), flags, and argument completions.
+
 const zcomplete = @import("zcomplete");
 const streql = zcomplete.streql;
 const std = @import("std");

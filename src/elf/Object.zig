@@ -1,3 +1,6 @@
+//! Parser and representation for 32-bit and 64-bit ELF object files.
+//! Provides section lookup, header decoding, and symbol inspection.
+
 arena: Allocator,
 data: []const u8,
 path: []const u8,

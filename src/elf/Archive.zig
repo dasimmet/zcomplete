@@ -1,3 +1,5 @@
+//! Parser and representation for Unix static archives containing ELF objects.
+
 arena: Allocator,
 data: []const u8,
 path: []const u8,

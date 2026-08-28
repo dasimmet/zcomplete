@@ -1,3 +1,6 @@
+//! Example CLI application demonstrating embedded zcomplete auto-completion.
+//! Implements multi-nested subcommands, flags, and arguments matching simple-example.zcomplete.zig.
+
 const std = @import("std");
 const zcomplete = @import("zcomplete");
 const spec = @import("simple-example.zcomplete.zig");

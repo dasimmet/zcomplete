@@ -1,3 +1,6 @@
+//! WebAssembly execution backend powered by the `wasmz` runtime.
+//! Provides sandboxed execution of embedded .zcomplete WASM modules.
+
 const std = @import("std");
 const wasmz = @import("wasmz");
 const zcomplete = @import("zcomplete");

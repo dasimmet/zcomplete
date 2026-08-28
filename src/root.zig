@@ -1,3 +1,7 @@
+//! Core library interface for zcomplete.
+//! Defines the auto-completion API, AutoComplete builder, data structures,
+//! argument protocol, and response serialization between host runner and WASM module.
+
 pub const options = @import("options");
 const std = @import("std");
 pub const linker_section_name = ".zcomplete";

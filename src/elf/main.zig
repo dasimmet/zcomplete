@@ -1,3 +1,6 @@
+//! ELF file and archive inspector utility.
+//! Parses headers, section tables, symbol tables, and dumps ELF sections.
+
 const std = @import("std");
 const fs = std.fs;
 

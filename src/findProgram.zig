@@ -1,3 +1,6 @@
+//! Executable path resolver.
+//! Searches for binaries by name or path across system PATH and custom search directories.
+
 const std = @import("std");
 const fs = std.fs;
 const mem = std.mem;

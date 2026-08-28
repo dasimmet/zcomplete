@@ -1,7 +1,11 @@
+//! CLI runner for zcomplete shell auto-completion.
+//! Handles command line parsing, ELF .zcomplete section extraction,
+//! WebAssembly instantiation via the configured backend, and output formatting for Bash.
+
 const std = @import("std");
 const zcomplete = @import("zcomplete");
 const known_folders = @import("known-folders");
-pub const WasmBackend = @import("wasmbackend");
+const WasmBackend = @import("wasmbackend");
 const elf = struct {
     pub const main = @import("elf/main.zig");
     pub const Archive = @import("elf/Archive.zig");
@@ -10,7 +14,7 @@ const elf = struct {
 
 const findProgram = @import("findProgram.zig").findProgram;
 
-pub const usage =
+const usage =
     \\zcomp {--help|eval|bash|extract|complete}
     \\
     \\
@@ -20,10 +24,10 @@ pub const std_options: std.Options = .{
     .log_level = .debug,
 };
 
-pub const zcomp_spec = @import("zcomp.zcomplete.zig");
-pub const Command = zcomp_spec.Command;
+const zcomp_spec = @import("zcomp.zcomplete.zig");
+const Command = zcomp_spec.Command;
 
-pub const CommandFn = struct {
+const CommandFn = struct {
     pub const Type = *const fn (std.process.Init, []const [:0]const u8) anyerror!void;
     pub fn function(self: Command) Type {
         return switch (self) {
@@ -59,25 +63,25 @@ pub fn main(init: std.process.Init) !void {
     return error.UnknownCommand;
 }
 
-pub fn help(init: std.process.Init, args: []const [:0]const u8) !void {
+fn help(init: std.process.Init, args: []const [:0]const u8) !void {
     _ = args;
     const stdout_fd = std.Io.File.stdout();
     try stdout_fd.writeStreamingAll(init.io, usage);
 }
 
-pub fn version(init: std.process.Init, args: []const [:0]const u8) !void {
+fn version(init: std.process.Init, args: []const [:0]const u8) !void {
     _ = args;
     const stdout_fd = std.Io.File.stdout();
     try stdout_fd.writeStreamingAll(init.io, "zcomp 0.1.0\n");
 }
 
-pub fn eval(init: std.process.Init, args: []const [:0]const u8) !void {
+fn eval(init: std.process.Init, args: []const [:0]const u8) !void {
     _ = args;
     const stdout_fd = std.Io.File.stdout();
     try stdout_fd.writeStreamingAll(init.io, @embedFile("share/zcomplete.bash"));
 }
 
-pub fn extract(init: std.process.Init, args: []const [:0]const u8) !void {
+fn extract(init: std.process.Init, args: []const [:0]const u8) !void {
     if (args.len < 2) return error.NotEnoughArguments;
     const gpa = init.gpa;
     const io = init.io;
@@ -96,7 +100,7 @@ pub fn extract(init: std.process.Init, args: []const [:0]const u8) !void {
     });
 }
 
-pub fn matchPattern(name: []const u8, pattern: []const u8) bool {
+fn matchPattern(name: []const u8, pattern: []const u8) bool {
     if (pattern.len == 0) return true;
     if (std.mem.startsWith(u8, pattern, "*")) {
         return std.mem.endsWith(u8, name, pattern[1..]);
@@ -107,7 +111,7 @@ pub fn matchPattern(name: []const u8, pattern: []const u8) bool {
     return std.mem.endsWith(u8, name, pattern) or std.mem.indexOf(u8, name, pattern) != null;
 }
 
-pub fn completePaths(
+fn completePaths(
     io: std.Io,
     gpa: std.mem.Allocator,
     stdout: *std.Io.Writer,
@@ -170,7 +174,7 @@ pub fn completePaths(
     }
 }
 
-pub fn bash(init: std.process.Init, args: []const [:0]const u8) !void {
+fn bash(init: std.process.Init, args: []const [:0]const u8) !void {
     if (args.len < 2) return error.NotEnoughArguments;
     const gpa = init.gpa;
     const io = init.io;
@@ -261,7 +265,7 @@ pub fn bash(init: std.process.Init, args: []const [:0]const u8) !void {
     try stderr.flush();
 }
 
-pub fn complete(init: std.process.Init, args: []const [:0]const u8) !void {
+fn complete(init: std.process.Init, args: []const [:0]const u8) !void {
     if (args.len < 1) return error.NotEnoughArguments;
     const gpa = init.gpa;
 
@@ -326,7 +330,7 @@ pub fn complete(init: std.process.Init, args: []const [:0]const u8) !void {
     }
 }
 
-pub fn getCompletion(
+fn getCompletion(
     init: std.process.Init,
     raw_cmd: []const u8,
     cur: usize,
@@ -370,7 +374,7 @@ pub fn getCompletion(
 }
 
 ///reads a file and returns elf section. caller owns memory.
-pub fn findElfbinSection(io: std.Io, gpa: std.mem.Allocator, file: []const u8, section_name: []const u8) !?[]u8 {
+fn findElfbinSection(io: std.Io, gpa: std.mem.Allocator, file: []const u8, section_name: []const u8) !?[]u8 {
     var arena_alloc = std.heap.ArenaAllocator.init(gpa);
     defer arena_alloc.deinit();
     const arena = arena_alloc.allocator();
@@ -408,7 +412,7 @@ pub fn findElfbinSection(io: std.Io, gpa: std.mem.Allocator, file: []const u8, s
     return null;
 }
 
-pub fn openLog(init: std.process.Init) !std.Io.File {
+fn openLog(init: std.process.Init) !std.Io.File {
     const runtime_dir: ?std.Io.Dir = try known_folders.open(
         init.io,
         init.arena.allocator(),

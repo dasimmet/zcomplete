@@ -1,3 +1,7 @@
+//! Standalone WebAssembly entrypoint for embedded .zcomplete modules.
+//! Exports C-ABI functions `alloc` and `run` to receive arguments from the host runner
+//! and invoke the user-defined `specfile.zcomp` completion handler.
+
 const zcomplete = @import("zcomplete");
 const specfile = @import("specfile");
 const std = @import("std");

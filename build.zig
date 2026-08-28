@@ -41,9 +41,9 @@ pub fn build(b: *std.Build) void {
     example_step.dependOn(&b.addInstallArtifact(simple_exe, .{}).step);
 
     const wasmbackend = b.option(
-        enum { zware, wasmz },
+        enum { zware, wasmz, zwasm },
         "wasmbackend",
-        "",
+        "WASM execution backend (zware, wasmz, zwasm)",
     ) orelse .zware;
 
     const wasmbackend_mod = switch (wasmbackend) {
@@ -67,6 +67,18 @@ pub fn build(b: *std.Build) void {
             })) |wasmz| &.{
                 .{ .name = "zcomplete", .module = zcomplete },
                 .{ .name = "wasmz", .module = wasmz.module("wasmz") },
+            } else &.{
+                .{ .name = "zcomplete", .module = zcomplete },
+            },
+        }),
+        .zwasm => b.createModule(.{
+            .root_source_file = b.path("src/backend/zwasm.zig"),
+            .imports = if (b.lazyDependency("zwasm", .{
+                .target = target,
+                .optimize = optimize,
+            })) |zwasm| &.{
+                .{ .name = "zcomplete", .module = zcomplete },
+                .{ .name = "zwasm", .module = zwasm.module("zwasm") },
             } else &.{
                 .{ .name = "zcomplete", .module = zcomplete },
             },
