@@ -20,16 +20,8 @@ pub const std_options: std.Options = .{
     .log_level = .debug,
 };
 
-pub const Command = enum {
-    eval,
-    extract,
-    bash,
-    complete,
-    help,
-    @"--help",
-    @"-h",
-    @"-?",
-};
+pub const zcomp_spec = @import("zcomp.zcomplete.zig");
+pub const Command = zcomp_spec.Command;
 
 pub const CommandFn = struct {
     pub const Type = *const fn (std.process.Init, []const [:0]const u8) anyerror!void;
@@ -43,6 +35,8 @@ pub const CommandFn = struct {
             .@"--help" => help,
             .@"-h" => help,
             .@"-?" => help,
+            .@"--version" => version,
+            .@"-v" => version,
         };
     }
 };
@@ -58,10 +52,8 @@ pub fn main(init: std.process.Init) !void {
         return help(init, &.{});
     }
 
-    inline for (std.meta.fields(Command)) |cmd| {
-        if (std.mem.eql(u8, cmd.name, args[1])) {
-            return CommandFn.function(@field(Command, cmd.name))(init, args[2..]);
-        }
+    if (Command.parse(args[1])) |cmd| {
+        return CommandFn.function(cmd)(init, args[2..]);
     }
 
     return error.UnknownCommand;
@@ -71,6 +63,12 @@ pub fn help(init: std.process.Init, args: []const [:0]const u8) !void {
     _ = args;
     const stdout_fd = std.Io.File.stdout();
     try stdout_fd.writeStreamingAll(init.io, usage);
+}
+
+pub fn version(init: std.process.Init, args: []const [:0]const u8) !void {
+    _ = args;
+    const stdout_fd = std.Io.File.stdout();
+    try stdout_fd.writeStreamingAll(init.io, "zcomp 0.1.0\n");
 }
 
 pub fn eval(init: std.process.Init, args: []const [:0]const u8) !void {
@@ -98,6 +96,80 @@ pub fn extract(init: std.process.Init, args: []const [:0]const u8) !void {
     });
 }
 
+pub fn matchPattern(name: []const u8, pattern: []const u8) bool {
+    if (pattern.len == 0) return true;
+    if (std.mem.startsWith(u8, pattern, "*")) {
+        return std.mem.endsWith(u8, name, pattern[1..]);
+    }
+    if (std.mem.startsWith(u8, pattern, ".")) {
+        return std.mem.endsWith(u8, name, pattern);
+    }
+    return std.mem.endsWith(u8, name, pattern) or std.mem.indexOf(u8, name, pattern) != null;
+}
+
+pub fn completePaths(
+    io: std.Io,
+    gpa: std.mem.Allocator,
+    stdout: *std.Io.Writer,
+    cur_arg: []const u8,
+    kind: enum { files, directories, paths },
+    pattern: ?[]const u8,
+) !void {
+    const cwd = std.Io.Dir.cwd();
+    var dir_path: []const u8 = "";
+    var prefix: []const u8 = cur_arg;
+
+    if (std.mem.lastIndexOfScalar(u8, cur_arg, std.fs.path.sep)) |sep_idx| {
+        dir_path = cur_arg[0 .. sep_idx + 1];
+        prefix = cur_arg[sep_idx + 1 ..];
+    }
+
+    const trimmed_dir = std.mem.trimEnd(u8, dir_path, &.{std.fs.path.sep});
+    const open_path = if (trimmed_dir.len == 0) (if (std.fs.path.isAbsolute(dir_path)) "/" else ".") else trimmed_dir;
+    var dir = if (std.fs.path.isAbsolute(open_path))
+        std.Io.Dir.openDirAbsolute(io, open_path, .{ .iterate = true }) catch return
+    else
+        cwd.openDir(io, open_path, .{ .iterate = true }) catch return;
+    defer dir.close(io);
+
+    var iter = dir.iterate();
+    while (try iter.next(io)) |entry| {
+        if (entry.name.len > 0 and entry.name[0] == '.' and (prefix.len == 0 or prefix[0] != '.')) {
+            continue;
+        }
+
+        if (!std.mem.startsWith(u8, entry.name, prefix)) continue;
+
+        const is_dir = entry.kind == .directory;
+        if (kind == .directories and !is_dir) continue;
+        if (!is_dir and pattern != null and !matchPattern(entry.name, pattern.?)) continue;
+
+        var candidate_buf = std.ArrayListUnmanaged(u8).empty;
+        defer candidate_buf.deinit(gpa);
+
+        try candidate_buf.appendSlice(gpa, dir_path);
+        try candidate_buf.appendSlice(gpa, entry.name);
+        if (is_dir) {
+            try candidate_buf.append(gpa, std.fs.path.sep);
+        }
+
+        const candidate = candidate_buf.items;
+        var has_space = false;
+        for (candidate) |c| {
+            if (std.ascii.isWhitespace(c)) {
+                has_space = true;
+                break;
+            }
+        }
+
+        if (has_space) {
+            try stdout.print("\"{s}\"\n", .{candidate});
+        } else {
+            try stdout.print("{s}\n", .{candidate});
+        }
+    }
+}
+
 pub fn bash(init: std.process.Init, args: []const [:0]const u8) !void {
     if (args.len < 2) return error.NotEnoughArguments;
     const gpa = init.gpa;
@@ -118,11 +190,12 @@ pub fn bash(init: std.process.Init, args: []const [:0]const u8) !void {
 
     const argv = args[2..];
 
-    const log_fd = try openLog(init);
-    defer log_fd.close(io);
-    var log_w = log_fd.writer(io, &.{});
-    const log = &log_w.interface;
-    try log.print("completing: {s} {f}\n", .{ cmd, std.json.fmt(argv, .{}) });
+    const maybe_log_fd = openLog(init) catch null;
+    defer if (maybe_log_fd) |lfd| lfd.close(io);
+    var log_buf: [4096]u8 = undefined;
+    var log_w = if (maybe_log_fd) |lfd| lfd.writer(io, &log_buf) else null;
+    const log: ?*std.Io.Writer = if (log_w) |*lw| &lw.interface else null;
+    if (log) |l| l.print("completing: {s} {f}\n", .{ cmd, std.json.fmt(argv, .{}) }) catch {};
 
     const parsed = getCompletion(
         init,
@@ -132,20 +205,20 @@ pub fn bash(init: std.process.Init, args: []const [:0]const u8) !void {
         false,
     ) catch |err| switch (err) {
         else => {
-            try log.print("getCompletion error: {}\n", .{err});
+            if (log) |l| l.print("getCompletion error: {}\n", .{err}) catch {};
             return;
         },
     };
     defer parsed.deinit(gpa);
 
-    try log.print("response: {any}\n", .{parsed});
+    if (log) |l| l.print("response: {any}\n", .{parsed}) catch {};
 
     const cur_arg = if (cur == 0 or argv.len < cur) "" else argv[cur - 1];
 
     switch (parsed.options) {
         .unknown => {},
         .fill_options => |opts| {
-            try log.print("opts: {f}\n", .{std.json.fmt(opts, .{})});
+            if (log) |l| l.print("opts: {f}\n", .{std.json.fmt(opts, .{})}) catch {};
             if (cur > 0) {
                 outer: for (opts) |opt| {
                     if (std.mem.startsWith(u8, opt, cur_arg)) {
@@ -159,6 +232,15 @@ pub fn bash(init: std.process.Init, args: []const [:0]const u8) !void {
                     }
                 }
             }
+        },
+        .files => |f| {
+            try completePaths(io, gpa, stdout, cur_arg, .files, f.pattern);
+        },
+        .directories => |d| {
+            try completePaths(io, gpa, stdout, cur_arg, .directories, d.pattern);
+        },
+        .paths => |p| {
+            try completePaths(io, gpa, stdout, cur_arg, .paths, p.pattern);
         },
         .int_range => |range| {
             for (@as(usize, @intCast(range.min orelse 0))..@as(usize, @intCast(range.max orelse 10))) |i| {
@@ -209,6 +291,30 @@ pub fn complete(init: std.process.Init, args: []const [:0]const u8) !void {
     switch (parsed.options) {
         .fill_options => |opts| {
             try stderr.print("opt: {f}\n", .{std.json.fmt(opts, .{})});
+            try stderr.flush();
+        },
+        .files => |f| {
+            if (f.pattern) |p| {
+                try stderr.print("opt: [files matching '{s}']\n", .{p});
+            } else {
+                try stderr.print("opt: [files]\n", .{});
+            }
+            try stderr.flush();
+        },
+        .directories => |d| {
+            if (d.pattern) |p| {
+                try stderr.print("opt: [directories matching '{s}']\n", .{p});
+            } else {
+                try stderr.print("opt: [directories]\n", .{});
+            }
+            try stderr.flush();
+        },
+        .paths => |p| {
+            if (p.pattern) |pat| {
+                try stderr.print("opt: [paths matching '{s}']\n", .{pat});
+            } else {
+                try stderr.print("opt: [paths]\n", .{});
+            }
             try stderr.flush();
         },
         .zcomperror => |msg| {
@@ -319,7 +425,7 @@ pub fn openLog(init: std.process.Init) !std.Io.File {
         return dir.openFile(
             init.io,
             "zcomp/zcomp.log",
-            .{},
+            .{ .mode = .write_only },
         ) catch |err| switch (err) {
             error.FileNotFound => {
                 return dir.createFile(init.io, "zcomp/zcomp.log", .{

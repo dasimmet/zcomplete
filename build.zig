@@ -1,58 +1,17 @@
 const std = @import("std");
 const LazyPath = std.Build.LazyPath;
 
-pub const Backend = enum {
-    no_backend,
-    clap,
-};
-
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     const known_folders = b.dependency("known_folders", .{}).module("known-folders");
 
-    const backend = b.option(
-        Backend,
-        "backend",
-        "the argument backend type to use",
-    ) orelse .no_backend;
-
-    var backend_module = if (b.option(
-        std.Build.LazyPath,
-        "backend_module",
-        "provide your own backend as a LazyPath",
-    )) |backend_module_path| b.addModule("backend", .{
-        .root_source_file = backend_module_path,
-        .target = target,
-        .optimize = optimize,
-    }) else null;
-
-    if (backend_module == null) {
-        switch (backend) {
-            .no_backend => {},
-            .clap => {
-                if (b.lazyDependency("clap", .{})) |clap| {
-                    backend_module = clap.module("clap");
-                } else {
-                    // we assume to have a backend module after this...but zig might need to download it.
-                    backend_module = b.addModule("lazy fallback module", .{
-                        .root_source_file = b.path("lazy fallback module"),
-                    });
-                }
-            },
-        }
-    }
-
     const zcomplete_options = b.addOptions();
-    zcomplete_options.addOption(Backend, "backend", backend);
     zcomplete_options.addOption(bool, "wasm_mode", false);
 
     const zcomplete = b.addModule("zcomplete", .{
         .root_source_file = b.path("src/root.zig"),
-        .imports = if (backend_module) |bm| &.{
-            .{ .name = "backend", .module = bm },
-            .{ .name = "options", .module = zcomplete_options.createModule() },
-        } else &.{
+        .imports = &.{
             .{ .name = "options", .module = zcomplete_options.createModule() },
         },
     });
@@ -69,7 +28,7 @@ pub fn build(b: *std.Build) void {
                     .name = "zcomplete_bin",
                     .module = ZComplete.builtinModule(
                         b,
-                        "simples",
+                        "simple-example-zcomplete",
                         zcomplete,
                         b.path("examples/simple-example.zcomplete.zig"),
                     ),
@@ -77,7 +36,7 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
-    // ZComplete.addLazyPath(b, simple_exe, zcomplete, b.path("examples/simple-example.zcomplete.zig"));
+    simple_exe.use_llvm = true;
     const example_step = b.step("example", "build an example with embedded completion");
     example_step.dependOn(&b.addInstallArtifact(simple_exe, .{}).step);
 
@@ -180,16 +139,128 @@ pub fn build(b: *std.Build) void {
     });
     const run_test = b.addRunArtifact(zcomp_zcomplete_test);
 
-    const run_complete_self = b.addRunArtifact(exe);
-    run_complete_self.addArg("complete");
-    run_complete_self.addFileArg(exe.getEmittedBin());
+    const test_complete_step = b.step("test-complete", "Run zcomp complete tests covering all features");
 
-    const test_complete_step = b.step("test-complete", "Run zcomp complete on itself");
-    test_complete_step.dependOn(&run_complete_self.step);
+    // 1. complete root commands & flags
+    const run_complete_root = b.addRunArtifact(exe);
+    run_complete_root.addArg("complete");
+    run_complete_root.addFileArg(exe.getEmittedBin());
+    test_complete_step.dependOn(&run_complete_root.step);
 
-    const test_step = b.step("test", "Run unit tests");
+    // 2. complete positional file option on extract
+    const run_complete_extract = b.addRunArtifact(exe);
+    run_complete_extract.addArg("complete");
+    run_complete_extract.addFileArg(exe.getEmittedBin());
+    run_complete_extract.addArg("extract");
+    run_complete_extract.addArg("");
+    test_complete_step.dependOn(&run_complete_extract.step);
+
+    // 3. complete positional file option on complete
+    const run_complete_complete = b.addRunArtifact(exe);
+    run_complete_complete.addArg("complete");
+    run_complete_complete.addFileArg(exe.getEmittedBin());
+    run_complete_complete.addArg("complete");
+    run_complete_complete.addArg("");
+    test_complete_step.dependOn(&run_complete_complete.step);
+
+    // 4. complete int range option on bash
+    const run_complete_bash = b.addRunArtifact(exe);
+    run_complete_bash.addArg("complete");
+    run_complete_bash.addFileArg(exe.getEmittedBin());
+    run_complete_bash.addArg("bash");
+    run_complete_bash.addArg("");
+    test_complete_step.dependOn(&run_complete_bash.step);
+
+    // 5. complete subcommands on help
+    const run_complete_help = b.addRunArtifact(exe);
+    run_complete_help.addArg("complete");
+    run_complete_help.addFileArg(exe.getEmittedBin());
+    run_complete_help.addArg("help");
+    run_complete_help.addArg("");
+    test_complete_step.dependOn(&run_complete_help.step);
+
+    // 6. bash mode: root commands completion
+    const run_bash_root = b.addRunArtifact(exe);
+    run_bash_root.addArg("bash");
+    run_bash_root.addArg("1");
+    run_bash_root.addFileArg(exe.getEmittedBin());
+    test_complete_step.dependOn(&run_bash_root.step);
+
+    // 7. bash mode: path completion with directory
+    const run_bash_path_dir = b.addRunArtifact(exe);
+    run_bash_path_dir.addArg("bash");
+    run_bash_path_dir.addArg("2");
+    run_bash_path_dir.addFileArg(exe.getEmittedBin());
+    run_bash_path_dir.addArg("extract");
+    run_bash_path_dir.addArg("src/");
+    test_complete_step.dependOn(&run_bash_path_dir.step);
+
+    // 8. bash mode: path completion with prefix
+    const run_bash_path_prefix = b.addRunArtifact(exe);
+    run_bash_path_prefix.addArg("bash");
+    run_bash_path_prefix.addArg("2");
+    run_bash_path_prefix.addFileArg(exe.getEmittedBin());
+    run_bash_path_prefix.addArg("extract");
+    run_bash_path_prefix.addArg("src/z");
+    test_complete_step.dependOn(&run_bash_path_prefix.step);
+
+    // 9. bash mode: int range completion
+    const run_bash_range = b.addRunArtifact(exe);
+    run_bash_range.addArg("bash");
+    run_bash_range.addArg("2");
+    run_bash_range.addFileArg(exe.getEmittedBin());
+    run_bash_range.addArg("bash");
+    test_complete_step.dependOn(&run_bash_range.step);
+
+    const simple_example_test = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/simple-example.zcomplete.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "zcomplete", .module = zcomplete },
+            },
+        }),
+    });
+    const run_simple_test = b.addRunArtifact(simple_example_test);
+
+    // 10. complete simple-example root
+    const run_complete_simple_root = b.addRunArtifact(exe);
+    run_complete_simple_root.addArg("complete");
+    run_complete_simple_root.addFileArg(simple_exe.getEmittedBin());
+    test_complete_step.dependOn(&run_complete_simple_root.step);
+
+    // 11. complete simple-example nested build
+    const run_complete_simple_build = b.addRunArtifact(exe);
+    run_complete_simple_build.addArg("complete");
+    run_complete_simple_build.addFileArg(simple_exe.getEmittedBin());
+    run_complete_simple_build.addArg("build");
+    run_complete_simple_build.addArg("");
+    test_complete_step.dependOn(&run_complete_simple_build.step);
+
+    // 12. complete simple-example nested build wasm (pattern *.zig)
+    const run_complete_simple_wasm = b.addRunArtifact(exe);
+    run_complete_simple_wasm.addArg("complete");
+    run_complete_simple_wasm.addFileArg(simple_exe.getEmittedBin());
+    run_complete_simple_wasm.addArg("build");
+    run_complete_simple_wasm.addArg("wasm");
+    run_complete_simple_wasm.addArg("");
+    test_complete_step.dependOn(&run_complete_simple_wasm.step);
+
+    // 13. bash mode: pattern filtered path completion on simple-example
+    const run_bash_simple_zig = b.addRunArtifact(exe);
+    run_bash_simple_zig.addArg("bash");
+    run_bash_simple_zig.addArg("3");
+    run_bash_simple_zig.addFileArg(simple_exe.getEmittedBin());
+    run_bash_simple_zig.addArg("build");
+    run_bash_simple_zig.addArg("wasm");
+    run_bash_simple_zig.addArg("src/");
+    test_complete_step.dependOn(&run_bash_simple_zig.step);
+
+    const test_step = b.step("test", "Run unit tests and completion tests");
     test_step.dependOn(&run_test.step);
-    test_step.dependOn(&run_complete_self.step);
+    test_step.dependOn(&run_simple_test.step);
+    test_step.dependOn(test_complete_step);
 }
 
 pub const ZComplete = struct {

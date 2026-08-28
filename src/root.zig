@@ -54,6 +54,30 @@ pub const AutoComplete = struct {
         }
         return list.toOwnedSlice(self.allocator) catch unreachable;
     }
+
+    pub fn files(self: *@This()) void {
+        self.respond(.{ .files = .{} });
+    }
+
+    pub fn filesPattern(self: *@This(), pattern: ?[]const u8) void {
+        self.respond(.{ .files = .{ .pattern = pattern } });
+    }
+
+    pub fn directories(self: *@This()) void {
+        self.respond(.{ .directories = .{} });
+    }
+
+    pub fn directoriesPattern(self: *@This(), pattern: ?[]const u8) void {
+        self.respond(.{ .directories = .{ .pattern = pattern } });
+    }
+
+    pub fn paths(self: *@This()) void {
+        self.respond(.{ .paths = .{} });
+    }
+
+    pub fn pathsPattern(self: *@This(), pattern: ?[]const u8) void {
+        self.respond(.{ .paths = .{ .pattern = pattern } });
+    }
 };
 
 pub const Args = extern struct {
@@ -141,6 +165,9 @@ pub const Response = struct {
         zcomperror: []const u8,
         fill_options: []const []const u8,
         int_range: struct { min: ?i32, max: ?i32 },
+        files: struct { pattern: ?[]const u8 = null },
+        directories: struct { pattern: ?[]const u8 = null },
+        paths: struct { pattern: ?[]const u8 = null },
         _,
 
         pub fn deinit(self: @This(), gpa: std.mem.Allocator) void {
@@ -151,6 +178,9 @@ pub const Response = struct {
                     for (fo) |opt| gpa.free(opt);
                     gpa.free(fo);
                 },
+                .files => |f| if (f.pattern) |p| gpa.free(p),
+                .directories => |d| if (d.pattern) |p| gpa.free(p),
+                .paths => |p| if (p.pattern) |pat| gpa.free(pat),
                 else => @panic("free unknown message"),
             }
         }
@@ -164,6 +194,18 @@ pub const Response = struct {
                 .min = min,
                 .max = max,
             } };
+        }
+
+        pub fn filesOptions(pattern: ?[]const u8) @This() {
+            return .{ .files = .{ .pattern = pattern } };
+        }
+
+        pub fn directoriesOptions(pattern: ?[]const u8) @This() {
+            return .{ .directories = .{ .pattern = pattern } };
+        }
+
+        pub fn pathsOptions(pattern: ?[]const u8) @This() {
+            return .{ .paths = .{ .pattern = pattern } };
         }
 
         pub fn parse(tag_enum: std.meta.Tag(@This()), gpa: std.mem.Allocator, payload: []const u8) !@This() {
@@ -193,6 +235,21 @@ pub const Response = struct {
                             .max = if (max == std.math.maxInt(i32)) null else max,
                         },
                     };
+                },
+                .files => return .{
+                    .files = .{
+                        .pattern = if (payload.len > 0) try gpa.dupe(u8, payload) else null,
+                    },
+                },
+                .directories => return .{
+                    .directories = .{
+                        .pattern = if (payload.len > 0) try gpa.dupe(u8, payload) else null,
+                    },
+                },
+                .paths => return .{
+                    .paths = .{
+                        .pattern = if (payload.len > 0) try gpa.dupe(u8, payload) else null,
+                    },
                 },
                 else => return error.UnknownField,
             }
@@ -230,6 +287,21 @@ pub const Response = struct {
                     gpa,
                     &@as([4]u8, @bitCast(ir.max orelse std.math.maxInt(i32))),
                 ) catch @panic("OOM");
+            },
+            .files => |f| {
+                if (f.pattern) |p| {
+                    acc.appendSlice(gpa, p) catch @panic("OOM");
+                }
+            },
+            .directories => |d| {
+                if (d.pattern) |p| {
+                    acc.appendSlice(gpa, p) catch @panic("OOM");
+                }
+            },
+            .paths => |p| {
+                if (p.pattern) |pat| {
+                    acc.appendSlice(gpa, pat) catch @panic("OOM");
+                }
             },
             else => {
                 res.tag = @intFromEnum(Options.zcomperror);

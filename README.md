@@ -1,109 +1,298 @@
 # zcomplete
 
-a python argcomplete inspired shell completion engine for zig argument parsers.
+A fast, safe, WebAssembly-powered shell completion engine for Zig CLI applications.
 
-Traditionally, [bash-completion](https://github.com/scop/bash-completion/)
-works by command line programs shipping their own `bash` code to handle
-suggestions when users type the command and hit `<TAB>` on the keyboard.
+Inspired by Python's [argcomplete](https://pypi.org/project/argcomplete/), `zcomplete` lets command-line tools define their argument parsing and auto-completion logic directly in Zig without maintaining separate shell-specific scripts.
 
-Since these scripts are:
+---
 
-- `bash` specific
-- maintained separately from the binary and might not match the behaviour
-  of it.
+## How It Works
 
-Zcomplete instead works like this:
+1. **Standalone WASM Specification**: Your CLI's completion logic is compiled into a lightweight WebAssembly module (`wasm32-freestanding-none`).
+2. **Embedded in ELF Binary**: The compiled `.wasm` is embedded directly into the binary's `.zcomplete` ELF section using Zig's `linksection` attribute (no separate files or runtime overhead).
+3. **Single Generic Runner (`zcomp`)**: When you type a command and hit `<TAB>`, Bash calls `zcomp`, which:
+   - Reads the `.zcomplete` section from the executable.
+   - Executes the completion function inside a fast, isolated WebAssembly sandbox ([zware](https://github.com/dasimmet/zware) or [wasmz](https://github.com/Ray-D-Song/wasmz)).
+   - Resolves subcommands, flags, values, integer ranges, or filesystem paths.
+   - Outputs suggestions directly to Bash.
 
-- Generate a separate `.wasm` version of your program's argument parser
-- embed the `.wasm` in a special `zcomplete.wasm` ELF section using a linker script
-- provides a generic tool called `zcomp` that needs to be installed in `PATH`
-  once, along with a simple `zcomplete.bash` completion script.
-- when pressing `<TAB>` in bash, `zcomp` will try to 
-  extract and instanciate the `zcomplete.wasm` section with a [Webassembly Runtime](https://github.com/malcolmstill/zware),
-  then pass in the current command line and the current arg to be completed.
-- evaluate the response and generate bash completion
-- SUCCESS!
+---
 
-## Zcomplete vs argcomplete
+## Features
 
-Python's [argcomplete](https://pypi.org/project/argcomplete/) works
-by running the actual python script until the `argparse` instance is created,
-and uses the contained info to generate the completion suggestions.
-It's main shortcomings are:
+- **Zero Shell Scripts to Maintain**: Write completion logic once in Zig.
+- **Nested Subcommands**: Full support for deeply nested commands and subcommands (e.g. `tool package bundle ...`).
+- **Short & Long Options**: Complete `-h`, `-v`, `-O`, `--help`, `--version`, `--verbose`, etc.
+- **Path & Directory Completion**:
+  - `a.files()` — auto-completes files in the filesystem.
+  - `a.filesPattern("*.zig")` — pattern-filtered file completions while maintaining directory traversal.
+  - `a.directories()` — auto-completes directories only (e.g. for output destinations or source roots).
+  - `a.paths()` — generic filesystem path completion.
+- **Fixed Value Lists**: Suggest values from enums or string arrays (e.g. `json`, `yaml`, `toml`).
+- **Integer Ranges**: Dynamic numerical range completion (e.g. `1..10`).
+- **Safe & Sandboxed**: Execution happens inside WebAssembly memory without executing native code from the binary.
 
-- needs to run the actual python script. We cannot do that on a native binary
-  safely. It uses a `PYTHON_ARGCOMPLETE_OK` magic string to determine a
-  script's eligibility for completion.
-- May take longer than bearable by users on each `<TAB>` press,
-  since starting python and reading all source code is slow.
+---
 
-## TODOs
+## Setup & Bash Integration
 
-This project is in a Proof-of-concept stage. It barely generates 
-useful completion for itself.
+### 1. Build and Install `zcomp`
 
-### Support other shells than `bash`
+```bash
+git clone https://github.com/dasimmet/zcomplete.git
+cd zcomplete
+zig build -Doptimize=ReleaseFast
+```
 
-- [`zsh`](https://github.com/zsh-users/zsh-completions)
-- [`fish`](https://fishshell.com/docs/current/completions.html)
-- [`powershell`](https://learn.microsoft.com/en-us/powershell/scripting/learn/shell/tab-completion?view=powershell-7.5)
+Copy the resulting `zcomp` binary to your `PATH` (e.g. `~/.local/bin` or `/usr/local/bin`):
 
-### Povide completion for file paths in the filesystem
+```bash
+cp zig-out/bin/zcomp ~/.local/bin/
+```
 
-- Offer a way for `.wasm` to query filesystem files?
-- report back valid extensions or magic numbers from `.wasm` to `zcomp`?
+### 2. Enable Bash Completion
 
-### Alternatives if embedding in ELF is not an option.
+Add the following hook to your `~/.bashrc`:
 
-- Embedded Windows Resource files?
-- MachO?
-- Support `.wasm` separate from the binary?
-  This needs a reasonably fast way of associating a binary and the `.wasm`.
-  Optionally, a single `.wasm` core could serve completions for multiple
-  binaries, like and `zcomplete` could use the `.wasm` files like a plugin system.
+```bash
+eval "$(zcomp eval)"
+```
 
-### make a non-mvp target it work with zig master
+Alternatively, install the bash completion script globally or into your user directory:
 
-at the moment we set an explicit generic target (which means only `mvp`
-wasm features are on):
+```bash
+# User installation:
+mkdir -p ~/.local/share/bash-completion/completions
+cp src/share/zcomplete.bash ~/.local/share/bash-completion/completions/zcomplete
+
+# Or system-wide:
+sudo cp src/share/zcomplete.bash /etc/bash_completion.d/zcomplete
+```
+
+Once loaded, `zcomp` will dynamically handle completions for **any** binary built with `zcomplete`.
+
+---
+
+## Adding `zcomplete` to Your Zig Project
+
+### 1. Add Dependency (`build.zig.zon`)
 
 ```zig
-.target = b.resolveTargetQuery(.{
-    .cpu_arch = .wasm32,
-    .os_tag = .freestanding,
-    .abi = .none,
-    .cpu_model = .{
-        .explicit = std.Target.Cpu.Model.generic(.wasm32),
+.{
+    .name = .my_project,
+    .version = "0.1.0",
+    .fingerprint = 0x1234567890abcdef,
+    .minimum_zig_version = "0.16.0",
+    .dependencies = .{
+        .zcomplete = .{
+            .url = "git+https://github.com/dasimmet/zcomplete.git#<commit_hash>",
+            .hash = "<hash>",
+        },
     },
-}),
+    .paths = .{ "build.zig", "build.zig.zon", "src" },
+}
 ```
 
-zware works always with 0.14.0, on master with only `wasm32-freestanding`
-it fails. Maybe only `mvp` wasm32 should be supported, but this is the
-error:
+### 2. Configure `build.zig`
 
-```
-error: ValidatorCallIndirectNoTable
-/home/dasimmet/.cache/zig/p/zware-0.0.1-ZA7j6X3jBABhBIltmAF9N6OP7VTsgFP3O1xPkgiaCY_t/src/module/parser.zig:384:68: 0x11c7aec in next (zcomp)
-                if (tableidx >= self.module.tables.list.items.len) return error.ValidatorCallIndirectNoTable;
-                                                                   ^
-/home/dasimmet/.cache/zig/p/zware-0.0.1-ZA7j6X3jBABhBIltmAF9N6OP7VTsgFP3O1xPkgiaCY_t/src/module/parser.zig:63:16: 0x11d9292 in parseFunction (zcomp)
-        while (try self.next()) |instr| {
-               ^
-/home/dasimmet/.cache/zig/p/zware-0.0.1-ZA7j6X3jBABhBIltmAF9N6OP7VTsgFP3O1xPkgiaCY_t/src/module.zig:798:9: 0x11d973a in readFunction (zcomp)
-        return parser.parseFunction(funcidx, locals, code);
-        ^
-/home/dasimmet/.cache/zig/p/zware-0.0.1-ZA7j6X3jBABhBIltmAF9N6OP7VTsgFP3O1xPkgiaCY_t/src/module.zig:686:33: 0x11d9e27 in decodeCodeSection (zcomp)
-            const parsed_code = try self.readFunction(module, locals, function_index_start + i);
-                                ^
-/home/dasimmet/.cache/zig/p/zware-0.0.1-ZA7j6X3jBABhBIltmAF9N6OP7VTsgFP3O1xPkgiaCY_t/src/module.zig:174:22: 0x11dade0 in decodeSection (zcomp)
-            .Code => try self.decodeCodeSection(module),
-                     ^
-/home/dasimmet/.cache/zig/p/zware-0.0.1-ZA7j6X3jBABhBIltmAF9N6OP7VTsgFP3O1xPkgiaCY_t/src/module.zig:106:25: 0x11dba05 in decode (zcomp)
-                else => return err,
-                        ^
-/home/dasimmet/repos/zig/zcomplete/src/zcomp.zig:69:5: 0x11fc840 in complete (zcomp)
-    try module.decode();
-    ^
+Use `ZComplete.builtinModule` to build your completion specification into a WASM module and link it to your executable:
 
+```zig
+const std = @import("std");
+const zcomplete_pkg = @import("zcomplete");
+const ZComplete = zcomplete_pkg.ZComplete;
+
+pub fn build(b: *std.Build) void {
+    const target = b.standardTargetOptions(.{});
+    const optimize = b.standardOptimizeOption(.{});
+
+    const zcomplete = b.dependency("zcomplete", .{
+        .target = target,
+        .optimize = optimize,
+    }).module("zcomplete");
+
+    const exe = b.addExecutable(.{
+        .name = "mycli",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "zcomplete", .module = zcomplete },
+                .{
+                    .name = "zcomplete_bin",
+                    .module = ZComplete.builtinModule(
+                        b,
+                        "mycli-zcomplete",
+                        zcomplete,
+                        b.path("src/mycli.zcomplete.zig"),
+                    ),
+                },
+            },
+        }),
+    });
+    exe.use_llvm = true;
+    b.installArtifact(exe);
+}
 ```
+
+### 3. Embed Completion in Your Binary (`src/main.zig`)
+
+In your CLI source file, include the embedded WASM section:
+
+```zig
+const std = @import("std");
+const zcomplete = @import("zcomplete");
+
+// Embed the compiled WASM parser in the .zcomplete section
+const embedded_bin = @embedFile("zcomplete_bin");
+const prog: [embedded_bin.len]u8 linksection(zcomplete.linker_section_name) = embedded_bin[0..embedded_bin.len].*;
+
+pub fn main() !void {
+    _ = prog; // Keep symbol referenced
+    
+    // Your regular CLI execution code here...
+}
+```
+
+---
+
+## Writing a Completion Specification
+
+Create `src/mycli.zcomplete.zig` to define how your commands, flags, and arguments are completed:
+
+```zig
+const std = @import("std");
+const zcomplete = @import("zcomplete");
+
+pub const Command = enum {
+    build,
+    config,
+    package,
+    help,
+    @"--help",
+    @"--version",
+    @"-h",
+    @"-v",
+
+    pub fn parse(str: []const u8) ?Command {
+        inline for (comptime std.meta.fields(Command)) |field| {
+            if (std.mem.eql(u8, field.name, str)) return @field(Command, field.name);
+        }
+        return null;
+    }
+};
+
+pub const BuildTarget = enum {
+    wasm,
+    image,
+    @"--release",
+    @"--verbose",
+    @"-v",
+
+    pub fn parse(str: []const u8) ?BuildTarget {
+        inline for (comptime std.meta.fields(BuildTarget)) |field| {
+            if (std.mem.eql(u8, field.name, str)) return @field(BuildTarget, field.name);
+        }
+        return null;
+    }
+};
+
+pub fn zcomp(a: *zcomplete.AutoComplete) !void {
+    a.name("mycli");
+
+    const root_cmd: ?Command = if (a.args.len >= 2) Command.parse(a.args[1]) else null;
+
+    switch (a.cur) {
+        0 => a.respond(.unknown),
+        1 => a.respond(.fillOptions(a.enumNames(Command))),
+        2 => {
+            if (root_cmd) |rc| switch (rc) {
+                .build => a.respond(.fillOptions(a.enumNames(BuildTarget))),
+                .config => a.respond(.fillOptions(&.{ "get", "set", "load", "reset" })),
+                .package => a.respond(.fillOptions(&.{ "bundle", "verify", "--dry-run" })),
+                .help, .@"--help", .@"--version", .@"-h", .@"-v" => a.respond(.fillOptions(&.{
+                    "build",
+                    "config",
+                    "package",
+                    "help",
+                })),
+            } else a.respond(.unknown);
+        },
+        3 => {
+            if (root_cmd) |rc| switch (rc) {
+                .build => {
+                    const target = if (a.args.len >= 3) BuildTarget.parse(a.args[2]) else null;
+                    if (target) |t| switch (t) {
+                        .wasm => a.filesPattern("*.zig"), // Only show .zig files & dirs
+                        .image => a.filesPattern("*.png"), // Only show .png files & dirs
+                        else => a.files(),
+                    } else a.files();
+                },
+                .config => a.respond(.fillOptions(&.{ "theme", "editor", "timeout" })),
+                .package => a.directories(), // Complete source directory
+                else => a.respond(.unknown),
+            } else a.respond(.unknown);
+        },
+        4 => {
+            if (root_cmd) |rc| switch (rc) {
+                .package => a.filesPattern("*.tar.gz"), // Complete destination archive
+                else => a.respond(.unknown),
+            } else a.respond(.unknown);
+        },
+        else => a.respond(.unknown),
+    }
+}
+```
+
+---
+
+## `zcomp` CLI Reference
+
+The `zcomp` runner provides tools for inspecting, testing, and debugging completions:
+
+| Command | Description |
+|---|---|
+| `zcomp complete <binary> [args...]` | Inspect completions for a binary at the given argument position. |
+| `zcomp bash <cur_index> <command> [args...]` | Generate Bash completion candidate lines. |
+| `zcomp extract <binary> [output.wasm]` | Extract the embedded `.zcomplete` WASM module from an ELF binary. |
+| `zcomp eval` | Output the Bash hook snippet for `eval "$(zcomp eval)"`. |
+
+### Examples
+
+Test completions on your binary directly in your terminal:
+
+```bash
+# Complete top-level subcommands and options
+zcomp complete ./zig-out/bin/mycli
+
+# Complete nested subcommand
+zcomp complete ./zig-out/bin/mycli build ""
+
+# Test bash path completion for .zig files
+zcomp bash 3 ./zig-out/bin/mycli build wasm src/
+```
+
+---
+
+## Building & Testing
+
+```bash
+# Run unit tests
+zig build test
+
+# Run end-to-end completion tests with default (zware) engine
+zig build test-complete
+
+# Run end-to-end completion tests with wasmz engine
+zig build test-complete -Dwasmbackend=wasmz
+
+# Build example binary
+zig build example
+```
+
+---
+
+## License
+
+MIT License. See [LICENSE](LICENSE) for details.

@@ -1,16 +1,12 @@
 .{
-    .name = .clapcomplete,
+    .name = .zcomplete,
     .version = "0.0.0",
-    .fingerprint = 0x9714dfb9c96ac191,
+    .fingerprint = 0xa4c152affee6a20c,
     .minimum_zig_version = "0.16.0",
     .dependencies = .{
         .known_folders = .{
             .url = "git+https://github.com/ziglibs/known-folders.git#207c34a16e4365edc20d92c7892f962b3bed46e8",
             .hash = "known_folders-0.0.0-Fy-PJsbKAACbDh9bBxR0MMThxZSS6A9RH4apWphNHY70",
-        },
-        .clap = .{
-            .url = "git+https://github.com/Hejsil/zig-clap.git#bf56f229ed5b6c381d90e192234913c6deb3f688",
-            .hash = "clap-0.12.0-oBajB9noAQCFiI2syvjiZf6dENWUBFPWMEzdEPr99ZVx",
         },
         .zware = .{
             .url = "git+https://github.com/dasimmet/zware.git?ref=zig-0.16.x#bdde3fb2f5fed5af94122593ca65890160fd4f75",
